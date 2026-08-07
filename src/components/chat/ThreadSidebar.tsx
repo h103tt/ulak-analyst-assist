@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { createThread, deleteThread, listThreads } from "@/lib/chat-db";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import logo from "@/assets/ulak-agent-logo.png";
+import logo from "@/assets/ulak-logo-beyaz.png.asset.json";
 
 export function ThreadSidebar() {
   const navigate = useNavigate();
@@ -68,7 +68,7 @@ export function ThreadSidebar() {
     >
       <div className="flex h-[88px] items-center gap-3 border-b border-sidebar-border px-4">
         <Link to="/chat" className="flex min-w-0 items-center gap-3">
-          <img src={logo} alt="ULAK agent mark" width={36} height={36} className="h-9 w-9 shrink-0" />
+          <img src={logo.url} alt="ULAK agent mark" width={36} height={36} className="h-9 w-9 shrink-0" />
           {!collapsed && (
             <div className="min-w-0 leading-tight">
               <p className="truncate text-base font-extrabold tracking-tight">ULAK</p>

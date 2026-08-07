@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ShieldCheck, FileSearch, GaugeCircle, MessagesSquare } from "lucide-react";
-import logo from "@/assets/ulak-agent-logo.png";
+import logo from "@/assets/ulak-logo-beyaz.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,7 +51,7 @@ function Landing() {
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-[88px] max-w-[1400px] items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="ULAK agent mark" width={40} height={40} className="h-10 w-10" />
+            <img src={logo.url} alt="ULAK agent mark" width={40} height={40} className="h-10 w-10" />
             <div className="leading-tight">
               <p className="text-lg font-extrabold tracking-tight">ULAK</p>
               <p className="text-xs text-muted-foreground">Quality Test Analyst</p>
