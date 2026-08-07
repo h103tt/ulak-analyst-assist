@@ -1,0 +1,10 @@
+[project]
+name = "test-analysis-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "deepagents>=0.7.4",
+    "langchain>=1.3.14",
+]
