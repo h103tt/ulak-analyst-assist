@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import logo from "@/assets/ulak-agent-logo.png";
+import logo from "@/assets/ulak-logo-beyaz.png.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -93,7 +93,7 @@ function AuthPage() {
 
       <div className="relative w-full max-w-md">
         <Link to="/" className="mb-8 flex items-center justify-center gap-3">
-          <img src={logo} alt="ULAK agent mark" width={44} height={44} className="h-11 w-11" />
+          <img src={logo.url} alt="ULAK agent mark" width={44} height={44} className="h-11 w-11" />
           <div className="leading-tight">
             <p className="text-lg font-extrabold tracking-tight">ULAK</p>
             <p className="text-xs text-muted-foreground">Quality Test Analyst</p>
