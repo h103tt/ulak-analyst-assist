@@ -31,7 +31,7 @@ import {
   uploadAttachment,
   type Attachment,
 } from "@/lib/chat-db";
-import logo from "@/assets/ulak-agent-logo.png";
+import logo from "@/assets/ulak-logo-beyaz.png.asset.json";
 
 const SUGGESTIONS = [
   "Summarise the key defects in the attached test report.",
@@ -248,7 +248,7 @@ export function ChatWindow({ threadId, threadTitle }: { threadId: string; thread
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-center">
-              <img src={logo} alt="ULAK agent mark" width={64} height={64} className="h-16 w-16" />
+              <img src={logo.url} alt="ULAK agent mark" width={64} height={64} className="h-16 w-16" />
               <h2 className="mt-6 text-2xl font-bold">How can I help with your test campaign?</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
                 Attach test reports, logs or result files and ask for analysis, defect triage or
