@@ -31,12 +31,12 @@ import {
   uploadAttachment,
   type Attachment,
 } from "@/lib/chat-db";
-import logo from "@/assets/ulak-logo-beyaz.png.asset.json";
+//import logo from "@/public/ulak-logo-beyaz-2.png";
 
 const SUGGESTIONS = [
-  "Summarise the key defects in the attached test report.",
-  "Which test cases have the highest regression risk this sprint?",
-  "Draft a test strategy for a 5G RAN interoperability campaign.",
+  "Generate comprehensive functional test cases for the attached System Requirements Specification (SRS).",
+  "Identify edge-case and negative test scenarios for the attached mission-critical communication requirements.",
+  "Draft a test strategy and traceability matrix for the ULAK 5G RAN interoperability requirements.",
 ];
 
 export function ChatWindow({ threadId, threadTitle }: { threadId: string; threadTitle: string }) {
@@ -248,11 +248,10 @@ export function ChatWindow({ threadId, threadTitle }: { threadId: string; thread
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-center">
-              <img src={logo.url} alt="ULAK agent mark" width={64} height={64} className="h-16 w-16" />
-              <h2 className="mt-6 text-2xl font-bold">How can I help with your test campaign?</h2>
+              <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={20} height={40} className="h-16 w-16" />
+              <h2 className="mt-6 text-2xl font-bold">How can I assist with your requirement analysis and test generation?</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Attach test reports, logs or result files and ask for analysis, defect triage or
-                coverage review.
+                Attach System Requirement Specifications (SRS), interface control documents, or project specs to generate test cases, analyze traceability, or review requirement coverage.
               </p>
               <div className="mt-8 grid w-full gap-3">
                 {SUGGESTIONS.map((s) => (

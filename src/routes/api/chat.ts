@@ -1,26 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
+import type { UIMessage } from "ai";
 
 type ChatRequestBody = {
+  id?: unknown;
   messages?: unknown;
   context?: unknown;
+  trigger?: unknown;
+  messageId?: unknown;
 };
 
-const SYSTEM_PROMPT = `You are the ULAK Quality Test Analyst, an AI assistant used internally by quality engineers at ULAK Haberleşme, a Turkish telecom equipment company.
+const AGENT_URL = process.env["AGENT_BASE_URL"] ?? "http://127.0.0.1:8010";
+const ATTACHMENT_BUCKET = "chat-uploads";
+const SIGNED_URL_EXPIRY = 60 * 15; // 15 minutes, enough for the whole reply stream
+// searchs for agent base url if it doesnt find any as default it goes to localhost
 
-Your expertise:
-- Analysing software/hardware test reports, execution logs, defect records and coverage data
-- Root-cause hypotheses, severity and priority assessment, regression risk
-- Test strategy, test case design review, traceability to requirements
-- Telecom domain context: 4G/5G RAN, core network, base stations, interoperability and field trials
-
-How you work:
-- Be precise, structured and evidence-driven. Cite the exact log lines, metrics or fields you relied on.
-- Prefer clear markdown: short summary first, then findings as a table or list, then recommended actions.
-- State assumptions explicitly and flag when data is insufficient rather than guessing.
-- Reply in the user's language (Turkish or English).`;
+function messageText(message: UIMessage): string {
+  return message.parts
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("")
+    .trim();
+} // this turns the prompt into raw text so that the agent could understan it
 
 export const Route = createFileRoute("/api/chat")({
   server: {
@@ -28,7 +28,8 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
         if (!token) return new Response("Unauthorized", { status: 401 });
-
+        
+        
         const supabaseUrl = process.env["SUPABASE_URL"];
         const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
         if (!supabaseUrl || !publishableKey) {
@@ -45,31 +46,88 @@ export const Route = createFileRoute("/api/chat")({
         const body = (await request.json()) as ChatRequestBody;
         if (!Array.isArray(body.messages)) {
           return new Response("Messages are required", { status: 400 });
-        }
-
-        const key = process.env["LOVABLE_API_KEY"];
-        if (!key) return new Response("Missing AI credentials", { status: 500 });
+        }//checks whether the request made my someone authorized or not
 
         const contextText = typeof body.context === "string" ? body.context.slice(0, 60000) : "";
-        const system = contextText
-          ? `${SYSTEM_PROMPT}\n\nAttached files provided by the user in this conversation:\n${contextText}`
-          : SYSTEM_PROMPT;
+        const agentMessages = (body.messages as UIMessage[])
+          .map((message) => ({
+            role: message.role,
+            content: messageText(message),
+          }))
+          .filter((message) => message.content && message.role !== "system");
 
-        const gateway = createLovableAiGatewayProvider(key);
+        if (agentMessages.length === 0) {
+          return new Response("No usable messages", { status: 400 });
+        }
+
+        // Pass the thread's attachments to the agent so it can index them
+        // into a session-scoped vector store. Signing happens here with the
+        // user's token so the Python side only ever sees a short-lived URL.
+        let files: Array<{ id: string; name: string; url: string }> = [];
+        const threadId = typeof body.id === "string" ? body.id : "";
+        if (threadId) {
+          const { data: rows, error: listError } = await supabase
+            .from("attachments")
+            .select("id, file_name, storage_path")
+            .eq("thread_id", threadId);
+          if (!listError && rows && rows.length > 0) {
+            const signed = await supabase.storage
+              .from(ATTACHMENT_BUCKET)
+              .createSignedUrls(rows.map((row) => row.storage_path), SIGNED_URL_EXPIRY);
+            files = (signed.data ?? [])
+              .filter((entry) => entry.signedUrl)
+              .map((entry) => ({
+                id: rows.find((row) => row.storage_path === entry.path)?.id ?? entry.path,
+                name: rows.find((row) => row.storage_path === entry.path)?.file_name ?? entry.path,
+                url: entry.signedUrl!,
+              }));
+
+            if (signed.error) {
+              console.error("signed url creation failed", signed.error);
+            }
+          } else if (listError) {
+            console.error("attachment list failed", listError);
+          }
+        }
 
         try {
-          const result = streamText({
-            model: gateway("google/gemini-3.5-flash"),
-            system,
-            messages: await convertToModelMessages(body.messages as UIMessage[]),
+          const agentResponse = await fetch(`${AGENT_URL}/chat`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              messages: agentMessages,
+              context: contextText,
+              thread_id: threadId || "default",
+              files,
+            }),
+            signal: request.signal,
           });
 
-          return result.toUIMessageStreamResponse({
-            originalMessages: body.messages as UIMessage[],
+          if (!agentResponse.ok) {
+            console.error(
+              "analysis agent error",
+              agentResponse.status,
+              await agentResponse.text(),
+            );
+            return new Response("The analysis agent failed to generate a response", {
+              status: 502,
+            });
+          }
+
+          return new Response(agentResponse.body, {
+            status: 200,
+            headers: {
+              "content-type": "text/event-stream; charset=utf-8",
+              "cache-control": "no-cache",
+              connection: "keep-alive",
+            },
           });
         } catch (error) {
-          console.error("chat stream failed", error);
-          return new Response("Failed to generate a response", { status: 500 });
+          console.error("analysis agent proxy failed", error);
+          return new Response(
+            "The analysis agent is not reachable. Is the Python agent server running?",
+            { status: 503 },
+          );
         }
       },
     },

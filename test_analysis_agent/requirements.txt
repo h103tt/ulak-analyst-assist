@@ -1,0 +1,24 @@
+# Web Framework & Requests
+fastapi
+uvicorn
+httpx
+pydantic
+
+# LangChain Ecosystem
+langchain
+langchain-core
+langchain-community
+langchain-classic
+langchain-text-splitters
+langchain-chroma
+langchain-ollama
+langgraph
+
+# Document Loaders & Processing
+pdfplumber
+unstructured
+pdf2image
+pytesseract
+pandas
+openpyxl
+python-docx
