@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import traceback
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -53,8 +54,21 @@ app_state: dict = {}
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    app_state["base_agent"] = agent.build_agent()
+    app_state["base_agent"] = None
     app_state["thread_agents"] = {}
+    app_state["startup_error"] = None
+
+    def _build_base_agent() -> None:
+        try:
+            app_state["base_agent"] = agent.build_agent()
+        except Exception as exc:
+            traceback.print_exc()
+            app_state["startup_error"] = str(exc)
+
+    # Build the (potentially slow) base agent off the event loop so the
+    # ASGI app can start accepting connections right away. /health and the
+    # /chat and /trace 503 checks below cover the window before it's ready.
+    threading.Thread(target=_build_base_agent, daemon=True).start()
     yield
 
 
@@ -232,7 +246,11 @@ async def answer_stream(agent_instance, thread_id: str, user_messages: list, con
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "agent_loaded": "base_agent" in app_state}
+    return {
+        "status": "ok",
+        "agent_loaded": app_state.get("base_agent") is not None,
+        "startup_error": app_state.get("startup_error"),
+    }
 
 
 class TraceRequestBody(BaseModel):

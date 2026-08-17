@@ -59,16 +59,13 @@ DOCS = [
     ("02_verification_and_testing",    "29119-1-2022.pdf",            "ISO/IEC/IEEE 29119-1:2022"),
     ("02_verification_and_testing",    "DOT-FAA-AR-07-39.PDF",        "DOT/FAA/AR-07/39"),
     ("02_verification_and_testing",    "IEEE-Test-Doc-829-2008.pdf",  "IEEE 829-2008"),
-    ("03_hardware_environmental",      "MIL-STD-461.pdf",             "MIL-STD-461"),
     ("03_hardware_environmental",      "MIL-STD-810H_CHG-1.pdf",      "MIL-STD-810H CHG-1"),
     ("03_hardware_environmental",      "MIL-STD-1553C.pdf",           "MIL-STD-1553C"),
     ("03_hardware_environmental",      "RTCA-DO-160G.pdf",            "RTCA DO-160G"),
     ("04_safety_security_config",      "MIL-STD-882E.pdf",            "MIL-STD-882E"),
-    ("04_safety_security_config",      "MIL-STD-973_NOTICE-5.PDF",    "MIL-STD-973 Notice 5"),
     ("04_safety_security_config",      "MIL-STD-1586A.pdf",           "MIL-STD-1586A"),
     ("04_safety_security_config",      "NIST_SP_800-171A.pdf",        "NIST SP 800-171A"),
     ("04_safety_security_config",      "SP800-53_REV-3.PDF",          "NIST SP 800-53 Rev.3"),
-    ("05_quality",                     "ISO-9001-2015.pdf",           "ISO 9001:2015"),
 ]
 
 def ocr_page(pdf_path, page_number):
@@ -90,25 +87,35 @@ def load_with_ocr(path, category, standard_label):
         page.metadata["source_file"] = os.path.basename(path)
     return pages
 
-all_chunks = []
-
-for category, filename, standard_label in DOCS:
-    full_path = os.path.join(KB_DIR, category, filename)
-    if not os.path.exists(full_path):
-        print(f"WARNING: missing file {full_path}, skipping")
-        continue
-    pages = load_with_ocr(full_path, category, standard_label)
-    all_chunks.extend(text_splitter_kb.split_documents(pages))
-
 vector_store = Chroma(
     collection_name="iso_files",
     embedding_function=embeddings,
     persist_directory=os.path.join(AGENT_DIR, "chromadb"),
 )
+# Only walk the KB and OCR pages if the persisted collection is actually
+# empty. On every warm restart (e.g. `--watch`) the collection already has
+# the ids on disk, so this check must run BEFORE the OCR/chunking work,
+# not after building all_chunks -- otherwise every restart re-OCRs the
+# entire knowledge base for nothing, which is what was stalling startup.
+EMBED_BATCH_SIZE = 32
+
+def add_in_batches(chunks, label=""):
+    for i in range(0, len(chunks), EMBED_BATCH_SIZE):
+        batch = chunks[i:i + EMBED_BATCH_SIZE]
+        vector_store.add_documents(documents=batch)
+        print(f"  embedded {label} batch {i // EMBED_BATCH_SIZE + 1} "
+              f"({i + len(batch)}/{len(chunks)})")
 
 if not vector_store.get()["ids"]:
-    vector_store.add_documents(documents=all_chunks)
-
+    for category, filename, standard_label in DOCS:
+        full_path = os.path.join(KB_DIR, category, filename)
+        if not os.path.exists(full_path):
+            print(f"WARNING: missing file {full_path}, skipping")
+            continue
+        pages = load_with_ocr(full_path, category, standard_label)
+        chunks = text_splitter_kb.split_documents(pages)
+        print(f"Embedding {filename} ({len(chunks)} chunks)...")
+        add_in_batches(chunks, label=filename)
 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 5})
 
 retriever_tool = create_retriever_tool(
@@ -116,6 +123,16 @@ retriever_tool = create_retriever_tool(
     name="search_testing_standards",
     description=(
         "Search internal standards documents for requirements, testing, hardware "
+        "qualification, safety, security, and quality guidance. "
+        "Each result includes 'standard' and 'category' metadata — always cite the "
+        "'standard' field, never invent a clause number not present in the retrieved text. "
+        "Categories: 01_se_process_and_requirements (lifecycle/requirements standards), "
+        "02_verification_and_testing (test design/documentation standards), "
+        "03_hardware_environmental (EMI/environmental/hardware bus standards), "
+        "04_safety_security_config (safety, cybersecurity, configuration control — note "
+        "NIST SP 800-53 here is Rev.3, outdated vs. current Rev.5), "
+        "05_quality (quality management). "
+        "Always call this before generating test cases or validating a requirement."
     )
 )
 def load_pdf(file_path: str) -> list[Document]:
