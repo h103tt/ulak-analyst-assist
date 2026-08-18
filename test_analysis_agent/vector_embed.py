@@ -1,6 +1,9 @@
 import os
 import re
+import glob
 
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 from langchain_community.document_loaders import (
@@ -16,11 +19,17 @@ from langchain_community.document_loaders.excel import UnstructuredExcelLoader
 from langchain_classic.retrievers import ParentDocumentRetriever
 from langchain_classic.storage import InMemoryStore
 from langchain_core.tools import tool
+from langchain_docling.loader import DoclingLoader
+from langchain_docling.loader import ExportType
+from docling.chunking import HybridChunker
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from transformers import AutoTokenizer
+
 
 AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KB_DIR = os.path.join(AGENT_DIR, "knowledge_base")
 OCR_MIN_CHAR_PER_PAGE = 50
-
+EXPORT_TYPE = ExportType.MARKDOWN
 
 def sanitize_collection_name(name: str) -> str:
     """Turn an arbitrary string into a valid Chroma collection name:
@@ -53,39 +62,91 @@ parent_splitter = RecursiveCharacterTextSplitter(
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
 DOCS = [
-    ("01_se_process_and_requirements", "12207_2017-2008_redline.pdf", "ISO/IEC/IEEE 12207:2017"),
-    ("01_se_process_and_requirements", "15288-2023-2.pdf",            "ISO/IEC/IEEE 15288:2023"),
-    ("01_se_process_and_requirements", "29148-2018.pdf",              "ISO/IEC/IEEE 29148:2018"),
-    ("02_verification_and_testing",    "29119-1-2022.pdf",            "ISO/IEC/IEEE 29119-1:2022"),
-    ("02_verification_and_testing",    "DOT-FAA-AR-07-39.PDF",        "DOT/FAA/AR-07/39"),
-    ("02_verification_and_testing",    "IEEE-Test-Doc-829-2008.pdf",  "IEEE 829-2008"),
-    ("03_hardware_environmental",      "MIL-STD-810H_CHG-1.pdf",      "MIL-STD-810H CHG-1"),
-    ("03_hardware_environmental",      "MIL-STD-1553C.pdf",           "MIL-STD-1553C"),
-    ("03_hardware_environmental",      "RTCA-DO-160G.pdf",            "RTCA DO-160G"),
-    ("04_safety_security_config",      "MIL-STD-882E.pdf",            "MIL-STD-882E"),
-    ("04_safety_security_config",      "MIL-STD-1586A.pdf",           "MIL-STD-1586A"),
-    ("04_safety_security_config",      "NIST_SP_800-171A.pdf",        "NIST SP 800-171A"),
-    ("04_safety_security_config",      "SP800-53_REV-3.PDF",          "NIST SP 800-53 Rev.3"),
+    ("01_se_process_and_requirements", "15288-2023-2.pdf",             "ISO/IEC/IEEE 15288:2023"),
+    ("02_verification_and_testing",    "IEEE-Test-Doc-829-2008.pdf",   "IEEE 829-2008"),
+    ("03_safety_security_config",      "MIL-STD-1586A.pdf",            "MIL-STD-1586A"),
+    ("03_safety_security_config",      "NIST_SP_800-171A.pdf",         "NIST SP 800-171A"),
+    ("03_safety_security_config",      "SP800-53_REV-3.PDF",           "SP 800-53 Rev.3"),
+    ("04_requirements",                "requirements_engineering.txt", "requirements_engineering")
 ]
 
-def ocr_page(pdf_path, page_number):
-    from pdf2image import convert_from_path
-    import pytesseract
-    images = convert_from_path(pdf_path, first_page=page_number+1, last_page=page_number+1)
-    return pytesseract.image_to_string(images[0])
+DOC_METADATA_LOOKUP = {
+    filename: {"category": category, "standard": standard_label} 
+    for category, filename, standard_label in DOCS
+}
+hf_tokenizer = HuggingFaceTokenizer(
+    tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True),
+    max_tokens=8192,
+)
+def process_single_file(path: Path): 
+    try:
+        loader = DoclingLoader(
+            file_path=str(path), 
+            export_type=ExportType.DOC_CHUNKS, # Ensure export type matches chunking needs
+            chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512)
+        )
+        docs = loader.load()
+        
+        # Look up the metadata for this specific file
+        file_info = DOC_METADATA_LOOKUP.get(path.name, {})
+        
+        # Inject metadata
+        for doc in docs:
+            doc.metadata["source_file"] = path.name
+            if "category" in file_info:
+                doc.metadata["category"] = file_info["category"]
+            if "standard" in file_info:
+                doc.metadata["standard"] = file_info["standard"]
+                
+        return docs
+    except Exception as e:
+        print(f"Error on {path.name}: {e}")
+        return []
+    
 
-def load_with_ocr(path, category, standard_label):
-    pages = PDFPlumberLoader(path).load()
-    for i, page in enumerate(pages):
-        if len(page.page_content.strip()) < OCR_MIN_CHAR_PER_PAGE:
+
+def load_concurrently_multi_format(directory_path: str, max_workers: int = 4, extensions: tuple = (".pdf", ".docx", ".xlsx", ".xls")): 
+    
+    dir_path = Path(directory_path)
+    file_paths = [p for p in dir_path.rglob("*") if p.suffix.lower() in extensions]
+    
+    all_documents = []
+    print(f"Starting concurrent load for {len(file_paths)} files...")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Map the futures to their file paths
+        future_to_path = {executor.submit(process_single_file, path): path for path in file_paths}
+        
+        for future in as_completed(future_to_path):
+            path = future_to_path[future]
             try:
-                page.page_content = ocr_page(path, i)
-            except Exception as e:
-                print(f"OCR failed for {path} page {i}: {e}")
-        page.metadata["category"] = category
-        page.metadata["standard"] = standard_label
-        page.metadata["source_file"] = os.path.basename(path)
-    return pages
+                docs = future.result()
+                all_documents.extend(docs)
+                print(f"Successfully loaded {path.name} ({len(docs)} chunks)")
+            except Exception as exc:
+                print(f"{path.name} generated an exception: {exc}")
+                
+    return all_documents
+
+
+# def ocr_page(pdf_path, page_number):
+#     from pdf2image import convert_from_path
+#     import pytesseract
+#     images = convert_from_path(pdf_path, first_page=page_number+1, last_page=page_number+1)
+#     return pytesseract.image_to_string(images[0])
+
+# def load_with_ocr(path, category, standard_label):
+#     pages = PDFPlumberLoader(path).load()
+#     for i, page in enumerate(pages):
+#         if len(page.page_content.strip()) < OCR_MIN_CHAR_PER_PAGE:
+#             try:
+#                 page.page_content = ocr_page(path, i)
+#             except Exception as e:
+#                 print(f"OCR failed for {path} page {i}: {e}")
+#         page.metadata["category"] = category
+#         page.metadata["standard"] = standard_label
+#         page.metadata["source_file"] = os.path.basename(path)
+#     return pages
 
 vector_store = Chroma(
     collection_name="iso_files",
@@ -98,24 +159,38 @@ vector_store = Chroma(
 # not after building all_chunks -- otherwise every restart re-OCRs the
 # entire knowledge base for nothing, which is what was stalling startup.
 EMBED_BATCH_SIZE = 32
-
-def add_in_batches(chunks, label=""):
+from langchain_community.vectorstores.utils import filter_complex_metadata
+def add_in_batches(chunks, label="knowledge_base"):
     for i in range(0, len(chunks), EMBED_BATCH_SIZE):
         batch = chunks[i:i + EMBED_BATCH_SIZE]
+        batch = filter_complex_metadata(batch) 
         vector_store.add_documents(documents=batch)
+    
         print(f"  embedded {label} batch {i // EMBED_BATCH_SIZE + 1} "
               f"({i + len(batch)}/{len(chunks)})")
 
-if not vector_store.get()["ids"]:
-    for category, filename, standard_label in DOCS:
-        full_path = os.path.join(KB_DIR, category, filename)
-        if not os.path.exists(full_path):
-            print(f"WARNING: missing file {full_path}, skipping")
-            continue
-        pages = load_with_ocr(full_path, category, standard_label)
-        chunks = text_splitter_kb.split_documents(pages)
-        print(f"Embedding {filename} ({len(chunks)} chunks)...")
-        add_in_batches(chunks, label=filename)
+
+def ingest_knowledge_base():
+    docs = load_concurrently_multi_format(KB_DIR)
+    if docs:
+        print(f"Embedding a total of {len(docs)} chunks into Chroma...")
+        add_in_batches(docs)
+    else:
+        print("no docs were loaded")
+
+if __name__ == "__main__":
+    ingest_knowledge_base()
+
+# if not vector_store.get()["ids"]:
+#     for category, filename, standard_label in DOCS:
+#         full_path = os.path.join(KB_DIR, category, filename)
+#         if not os.path.exists(full_path):
+#             print(f"WARNING: missing file {full_path}, skipping")
+#             continue
+#         pages = load_with_ocr(full_path, category, standard_label)
+#         chunks = text_splitter_kb.split_documents(pages)
+#         print(f"Embedding {filename} ({len(chunks)} chunks)...")
+#         add_in_batches(chunks, label=filename)
 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 5})
 
 retriever_tool = create_retriever_tool(
@@ -123,16 +198,18 @@ retriever_tool = create_retriever_tool(
     name="search_testing_standards",
     description=(
         "Search internal standards documents for requirements, testing, hardware "
-        "qualification, safety, security, and quality guidance. "
+        "qualification, safety, security guidance. Call this tool for ANY question "
+        "about the content, structure, process groups, definitions, or requirements "
+        "of a standard — not just when generating test cases. "
         "Each result includes 'standard' and 'category' metadata — always cite the "
         "'standard' field, never invent a clause number not present in the retrieved text. "
         "Categories: 01_se_process_and_requirements (lifecycle/requirements standards), "
         "02_verification_and_testing (test design/documentation standards), "
         "03_hardware_environmental (EMI/environmental/hardware bus standards), "
-        "04_safety_security_config (safety, cybersecurity, configuration control — note "
-        "NIST SP 800-53 here is Rev.3, outdated vs. current Rev.5), "
+        "04_safety_security_config (safety, cybersecurity, configuration control"
         "05_quality (quality management). "
-        "Always call this before generating test cases or validating a requirement."
+        "Always call this before answering any question about standard content, and "
+        "before generating test cases or validating a requirement."
     )
 )
 def load_pdf(file_path: str) -> list[Document]:
@@ -215,6 +292,7 @@ def build_session_retriever_tool(
             "in the user's uploaded files."
         ),
     )
+
 
 @tool
 def get_document_structure(file_name: str) -> str:
