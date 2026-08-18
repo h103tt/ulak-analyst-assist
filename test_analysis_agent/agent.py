@@ -17,6 +17,7 @@ def build_agent(tools=None, has_user_document: bool = False):
         temperature=0.5,
         top_k=20,
         top_p=0.15,
+        num_ctx=32768
     )
 
     system_prompt = (
@@ -31,6 +32,18 @@ def build_agent(tools=None, has_user_document: bool = False):
         "- Preconditions\n"
         "- Test Steps\n"
         "- Expected Result\n"
+        "\n\nGROUNDING RULES (apply to every response, not just test plan generation):\n"
+        "- For ANY factual claim about a standard (definitions, process names, clause "
+        "structure, requirements), you MUST call search_testing_standards first and "
+        "base your answer only on the retrieved text.\n"
+        "- Never answer questions about standard content from memory, even if you "
+        "believe you know the answer. Your training knowledge of these standards may "
+        "be wrong or may blend one standard with another.\n"
+        "- If the retrieved chunks don't contain the answer, say so explicitly "
+        "(e.g. 'The retrieved sections don't cover this') rather than filling the gap "
+        "with general knowledge.\n"
+        "- Never cite a clause/section number that doesn't appear verbatim in the "
+        "retrieved text.\n"
         "Do not provide conversational filler. Base your analysis solely on the provided context. "
         "Pay strict attention to boundary conditions and ensure expected results do not contradict each other. "
         "Treat a requirement as ambiguous if it fails to specify: threshold/limits, duration/timing, error messaging, state persistence (session vs. account-level), or recovery/unlock procedure. "
