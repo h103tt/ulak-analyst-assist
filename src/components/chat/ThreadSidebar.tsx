@@ -68,7 +68,7 @@ export function ThreadSidebar() {
     >
       <div className="flex h-[88px] items-center gap-3 border-b border-sidebar-border px-4">
         <Link to="/chat" className="flex min-w-0 items-center gap-3">
-          <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={36} height={36} className="h-9 w-9 shrink-0" />
+          <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={80} height={36} className="h-9 w-auto shrink-0" />
           {!collapsed && (
             <div className="min-w-0 leading-tight">
               <p className="truncate text-base font-extrabold tracking-tight">ULAK</p>

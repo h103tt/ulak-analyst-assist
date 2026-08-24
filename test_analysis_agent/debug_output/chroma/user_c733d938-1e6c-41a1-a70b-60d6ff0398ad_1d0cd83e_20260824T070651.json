@@ -1,0 +1,612 @@
+{
+  "collection": "user_c733d938-1e6c-41a1-a70b-60d6ff0398ad_1d0cd83e",
+  "generated_at": "2026-08-24T07:06:51.306178+00:00",
+  "count_before": 0,
+  "count_after": 67,
+  "inserted": 67,
+  "records": [
+    {
+      "id": "c7c23614-7b9d-4ad9-ae48-e068ee457914",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Department of Computer Engineering CENG350 Software Engineering Software Requirements Specification for FarmBot\nGroup 55 By Bar\u0131\u00b8 s Can Ba\u00b8 sar Y\u0131lmaz\nSaturday 6 th April, 2024"
+    },
+    {
+      "id": "7dd7a7a6-9fd8-4e69-848b-bdd74576f41c",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Contents\nList of Tables, List of Figures = List of Tables. List of Tables, List of Figures = List of Tables. List of Tables, List of Figures = List of Tables. List of Tables, List of Figures = List of Tables. List of Tables, iii = v. 1, List of Figures = Introduction. 1, List of Figures = Introducti"
+    },
+    {
+      "id": "a1c703a1-21ea-4cf8-ab2a-53273d100e01",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "List of Figures\n1.1, 1 = Context Diagram . . . . . . . . . . . . . . . . . .. 1.1, 2 = 3. 1.2, 1 = Account Management . . . . . . . . . . . . . . . .. 1.2, 2 = 6. 1.3, 1 = Add Garden . . . . . . . . . . . . . . . . . . . . .. 1.3, 2 = 7. 1.4, 1 = Garden Profile . . . . . . . . . . . . . . . . . . . "
+    },
+    {
+      "id": "f771a37f-2d3b-475e-8cb9-ec03ebbb99d4",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "List of Tables\n1, 1 = Revision Table . . . . . . . . . . . . . . . . . . . . . . . . .. 1, 2 = vi. 3.1, 1 = Tabular description of create web-app account case . . . . .. 3.1, 2 = 27. 3.2, 1 = Tabular description of install farmbot os case . . . . . . . . .. 3.2, 2 = 27. 3.3, 1 = Tabular description "
+    },
+    {
+      "id": "4647bcbe-08c4-4a8c-9218-21106af678c1",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Revision History\nTable 1: Revision Table\n\nv1.0, Description = Finished until 1.3. v1.0, Date = 14.03.2024. v1.0, Author = Bar\u0131\u00b8 s, Ba\u00b8 sar. v1.1, Description = Finished 3.2, added use case diagram and tabular descriptions. v1.1, Date = 23.03.2024. v1.1, Author = Bar\u0131\u00b8 s, Ba\u00b8 sar. v1.2, Description ="
+    },
+    {
+      "id": "d4fefdeb-d25f-4213-ab79-e94010a14c15",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1. Introduction\nThis document is written to describe the Software Requirements Specification (SRS) [1] for the open-source project FarmBot. FarmBot is an open-source CNC (computer numerical control) farming project. It consists of a cartesian coordinate robot farming machine, software, and documenta"
+    },
+    {
+      "id": "31cefdb0-cc2b-4238-84bd-03d9b937a623",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.1 Purpose of the System\nThe project aims to create open-source and accessible technology for people to grow food easily. In addition to that, the mission of the benefit corporation FarmBot Inc. is to build a community that develops open-source hardware plans, software, data, and documentation that"
+    },
+    {
+      "id": "bd34470a-c4d1-4655-897e-f9d3beba854f",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2 Scope\nFarmBot is an open-source CNC farming project. The system aims to address the issues that have become prevalent with the ever-growing world population and its food demands. It significantly improves upon the conventional agriculture methods. The scope of the system consists of the followin"
+    },
+    {
+      "id": "bc67e815-17f2-44e1-93eb-b71ea7a35229",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1 System Perspective\nFarmBot Express is a user-friendly, stand-alone automated gardening system designed to cater to a wide range of users, including beginners, students, researchers, home users, and even individuals with disabilities. This self-contained system leverages a robotic arm controlle"
+    },
+    {
+      "id": "33987510-ee29-4186-ba26-836d8fdac625",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Context Diagram Analysis:\nThe context diagram provides a high-level overview of how FarmBot Express interacts with its surroundings and the data that flows between them. This visual representation helps to understand the system's functionalities and its role in automating gardening tasks. The core e"
+    },
+    {
+      "id": "54cc854e-d50e-457d-9a15-f1dcef87913e",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.1 System Interfaces\nFarmBot Express relies on a network of non-user interfaces to facilitate communication and control between various hardware, software, and communication components.\nThese interfaces can be categorized as internal (within the FarmBot system) and external (between FarmBot and"
+    },
+    {
+      "id": "18a24a15-ce51-47e1-b291-2dc8e5703bec",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.2 User Interfaces\nFarmBot Express prioritizes user-friendliness by offering intuitive interfaces for interaction and control. These interfaces can be categorized as:\n- Web Interface: This primary interface acts as the central hub for user interaction with FarmBot Express. Accessible through a "
+    },
+    {
+      "id": "deddedfb-362b-48b9-9ad3-0865187e7d5a",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Manage user accounts and profiles:\nThe FarmBot Express Settings page lets users personalize their experience. They can change their password, language, and time format preferences. Additionally, users can choose what information to display in the interface, including sensor data. The page also offer"
+    },
+    {
+      "id": "138c93c0-c3f6-49c4-8b97-62da98fe7eb2",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Create and manage farm profiles (size, layout, settings):\nFarmBot Express's user interface empowers users to establish and manage detailed profiles for each of their farms. Within these profiles, users can define the farm's size, meticulously map out the garden layout, and configure various settings"
+    },
+    {
+      "id": "d403a8a1-9bcd-4910-a964-bb8061f53645",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Manual Control:\nThis interface serves as the manual control center for the FarmBot. Notice the directional arrows. One can use these controls to guide a robotic arm across your garden with pinpoint accuracy. The accompanying numbers (1, 10, 100, 1000, 10000) represent distance increments, allowing f"
+    },
+    {
+      "id": "14fc5aca-53ef-486c-adef-f04e919d9db4",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Schedule and monitor planting and watering tasks\nFigure 1.6: Event Scheduling\nThe FarmBot Express Event Scheduler facilitates the creation and management of automated gardening tasks. Users can select the desired action type (e.g., watering, planting), specify the target location (entire garden layo"
+    },
+    {
+      "id": "9c96e8d1-2756-45fc-a5ef-4d633ba5c062",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Control Peripherals\nFigure 1.7: Control Peripherals\nThe FarmBot Express software provides a dedicated 'Peripherals' tab within the control interface. This tab empowers users with real-time control and management of FarmBot's peripheral devices."
+    },
+    {
+      "id": "2e1b0954-7bf2-42da-81dd-ed59930a6128",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Create sequential commands for various tasks\nx\nFigure 1.8: Sequential Command\nFarmBot Express's web application prioritizes user control over every aspect of their automated gardening experience. However, manual oversight of each individual action becomes impractical for large-scale or complex tasks"
+    },
+    {
+      "id": "d92e2dcd-ad37-462d-bbb4-d8a43aa728b0",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Visualize farm data and sensor readings\nFigure 1.9: Sensor Configuration\nUsers can easily access the sensor data using the web application of the FarmBot Express. This interface enables users to handle many harsh situations by providing user and cloud components with real-time data."
+    },
+    {
+      "id": "5228469a-25c4-4a94-9e2e-1bd97f76c6d4",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.3 Hardware Interfaces\nHardware interfaces define the physical connections between various hardware components within FarmBot Express. They specify the physical form (e.g., connectors, pins) and ensure proper electrical connections for data and power transfer. Examples include:\n- Tool Head Inte"
+    },
+    {
+      "id": "0a99dbe5-0a11-4e67-87ee-423310947fb3",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.4 Software Interfaces\nSoftware interfaces define the communication protocols and data formats used for software components to interact with each other. They specify the message structure, data types, and communication methods for seamless software interaction."
+    },
+    {
+      "id": "566f8189-fb9f-48f3-973c-7d6bd3681449",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "\u00b7 Microcontroller Software Interface:\nThis software interface defines how the central computer (often a Raspberry Pi) communicates with the onboard microcontroller. It uses an operating system named FarmBot OS developed for FarmBot to translate digital instructions into motor control commands. The F"
+    },
+    {
+      "id": "205b3389-2ad9-40eb-ba24-34bcc9719f58",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "\u00b7 Sensor Data Interface and Arduino Firmware:\nSensor Data Interface: This software interface defines the data format and communication protocol sensors use to transmit data (e.g., soil moisture, and temperature) to the central computer. However, the crucial role of the Arduino firmware comes into pl"
+    },
+    {
+      "id": "f2a1df07-224f-47b4-9221-40b1b022355f",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Arduino Firmware - The Bridge Between Sensors and FarmBot OS:\nThe firmware flashed onto the Arduino or Farmduino microcontroller acts as the bridge between the physical sensors and the FarmBot OS software running on the Raspberry Pi. Here's a breakdown of its functionalities:\nSensor Data Acquisition"
+    },
+    {
+      "id": "3447b767-333f-4036-b800-6f2e4c38b45f",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "\u00b7 Backend Interface:\nThe Backend Interface serves as the backbone of FarmBot Express, facilitating seamless communication between the user-facing web interface and various internal software components. It acts as a central hub, managing essential data and functionalities:"
+    },
+    {
+      "id": "a6ef388f-13bc-4dba-bd49-01c82f032b0e",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "User Management:\nThe interface handles user account creation, storage, and retrieval of user profile information. This ensures secure user authentication and facilitates personalized experiences within the FarmBot system. The more detailed version of user interaction and FarmBot's web application is"
+    },
+    {
+      "id": "a455d156-f769-49c2-b107-6aa643a15dc7",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Farm Data Management:\nThis aspect of the interface focuses on all data associated with a user's farm. It allows creation, editing, and access to farm profiles, which encompass details like size, plant layouts, settings, scheduled operations, statistics, data maps, and farm history. Essentially, the "
+    },
+    {
+      "id": "2aa82278-43d9-400f-9b92-0c4fb522694f",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Equipment Profiles:\nThe interface maintains information about the user's FarmBot hardware, including its current configuration and operational status. This ensures compatibility between uploaded control code and the actual capabilities of the equipment. Additionally, the interface facilitates update"
+    },
+    {
+      "id": "1b6c3208-d174-49e9-9c67-bd5295879c10",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Decision Support System Interaction:\nThe backend interface bridges the gap between the user-facing elements and the decision support system, an algorithmic component responsible for optimizing farm operations. It enables data exchange between the decision support system and other backend components."
+    },
+    {
+      "id": "c28cdc09-6d58-45fc-9823-1ea20323d5e1",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Data Integration\nWhile not explicitly mentioned as a core function of the Backend Interface, FarmBot Express might leverage cloud services to retrieve additional crop information from external databases like OpenFarm.cc. This integration enriches the decision support system by providing users access"
+    },
+    {
+      "id": "f4f3921e-0c78-4049-b152-49d22b4cf4a0",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.5 Communication Interfaces\nCommunication interfaces govern the exchange of data between FarmBot and external systems. They define the communication protocols and data formats used for internet connectivity, sensor data transmission, and potential future integrations.\n- Wi-Fi Interface: This co"
+    },
+    {
+      "id": "12e65afe-f9d7-4e93-a47b-a37559d8a3d2",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Communication Mechanisms:\nCommunication between these interfaces occurs through the established protocols and data formats mentioned above. Here's a breakdown of some key communication mechanisms:\n- Serial Communication: This is a common method for communication between the central computer and the "
+    },
+    {
+      "id": "13b5b81a-1c92-4531-ba59-0c9a9024992a",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "Standardization and Benefits:\nBy adhering to established communication protocols and utilizing standardized interfaces whenever possible (e.g., I2C, SPI, Wi-Fi), FarmBot ensures compatibility with readily available components. This facilitates future expansion with additional sensors or tools, allow"
+    },
+    {
+      "id": "430c34d2-861d-4668-aed5-7e8779642b8d",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.1.6 Memory Constraints\nTechnical Feasibility: FarmBot Express leverages established technologies (Raspberry Pi, sensors, open-source software) and cloud integration, making it technically achievable for users with moderate technical knowledge. The cloud-based deployment of the decision support s"
+    },
+    {
+      "id": "208c059d-0728-45ba-9aa2-cef27b9d22d3",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "\u00b7 System Operations:\n- -Sow and water the seeds\n- -Monitoring the seeds\n- -Get crop data from database\n- -Guide for optimal design\n- -Scan garden and detect weeds\n- -Display logs\n- -Display external data\n- -Authentication"
+    },
+    {
+      "id": "2dfa5628-4d0c-4b3f-9377-7652b0ff8fd6",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "\u00b7 User Operations:\n- -Create custom farm design\n- -Create custom sequence models\n- -Log in to web application\n- -Save farm designs\n- -Customize external tools"
+    },
+    {
+      "id": "43cffb98-fe62-4017-ae3d-842da7083e54",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.2 System Functions\nTable 1.1 below, provides the system functions in tabulated manner.\n\nSow seeds, water and monitor, Description = The system sows seeds, waters them individu- ally and monitors the garden.. Customize farm design, Description = The system allows user to create custom farm design"
+    },
+    {
+      "id": "8a0d8545-9337-4090-97a7-00ddb11159e3",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "(Continued)\nDisplay sensor data, 1 = The system displays to the user, the sensor data coming from the device through the web app.. Display photos, 1 = The system displays to the user, photos taken by the device's camera through the web app.. Authenticate user, 1 = The system authenticates the user b"
+    },
+    {
+      "id": "67b2ae25-0767-4090-999a-629907848df4",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.3 Stakeholder Characteristics\nThe stakeholders of the system are range from students, researchers, robotic artwork creators, to home users, people with disabilities. Characteristics of the stakeholders are explained below:\n- Students: For students in any level of study from K12 (Kindergarten and"
+    },
+    {
+      "id": "4f5ca38c-ed11-40d5-a55f-8388609d28cb",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.2.4 Limitations\n- Regulatory Requirements: The FarmBot project is 100% open-source. Hardware designs, software source code, and documentation are openly shared. However, technical support for DIY builds, customizations are not to be provided. In addition, FarmBot must comply with the local farming"
+    },
+    {
+      "id": "eda43a11-8919-4f85-b22b-1efe46630a5a",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "1.3 Definitions\n- HTTPS: Hypertext Transfer Protocol Secure (HTTPS) is an extension of the Hypertext Transfer Protocol (HTTP). It uses encryption for secure communication over a computer network, and is widely used on the Internet.\n- SSL: SSL, or Secure Sockets Layer, is an encryption-based Internet"
+    },
+    {
+      "id": "96c54b3e-ca4c-4586-8c11-a19eb8c88122",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "2. References\n- [1] Iso/iec/ieee international standard - systems and software engineering - life cycle processes - requirements engineering. ISO/IEC/IEEE 29148:2018(E) , pages 1-104, 2018."
+    },
+    {
+      "id": "724ac160-d484-4a6f-9726-b9825f55f5d2",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.1 External Interfaces\nFigure 3.1: External Interfaces Class Diagram\n- User Interface The user interface is the main way for the user to interact with the system. Every user has his own token and ID. Users can do some of the basic\n- operations here, such as sequence creation, creating an account, a"
+    },
+    {
+      "id": "e0102e0b-014c-460c-adf1-cf64577f850e",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.2 Functions\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nFigure 3.2: Use Case Diagram\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nUNREGISTERED\nTable 3.1: Tabular description of create web-app account case\n\nActors, Create web-app ac"
+    },
+    {
+      "id": "5ea6d582-e6cb-418f-8a30-698edc89074a",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.3 Logical Database Requirements\nFigure 3.6: Logical Database Requirements Class Diagram\nThe logical database requirements diagram can be seen in Figure 3.6. The dataflow diagram shows the relationships between the different entities in the database.\n1. User - The user entity stores the user's info"
+    },
+    {
+      "id": "925a81ec-7d3f-4b0f-bbed-6bff2dac6d48",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.4 Design Constraints\nFarmBot software is an open-source development project. Therefore clear guidelines for contribution, documentation and version control is needed. The software is licensed with the MIT license approved by the Open Source Initiative and a free license by Free Software Foundation"
+    },
+    {
+      "id": "f0adf1a2-31dc-448c-b68c-0a17a0337619",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.1 Usability Requirements\n- The system should be easy to set up, operate and maintain in order to be accessible to people with minimal technical knowledge.\n- The software should be intuitive for learning basic gardening principles and experimentation for a good learning experience for students. D"
+    },
+    {
+      "id": "0d3a5a9f-bcd0-4ee5-94fe-e4671e072810",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.2 Performance Requirements\n- FarmBot supports two user interfaces (terminals):\n2. FarmBot Configurator (Raspberry Pi)\n- Sensor data, camera data must be transferred between web-app and device in real-time. The messaging queue must process a million MQQT messages per second providing miliseconds-"
+    },
+    {
+      "id": "fc8a2d10-f213-4215-9b55-fe9c5e31d404",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.3 Reliability\n- Transfer of sensor, camera data between FarmBot device and web-app shall be accurate, without loss and real-time."
+    },
+    {
+      "id": "a30e898f-e370-4ff3-bd7c-efef4a83e9ca",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.4 Availability\n- FarmBot should be available to execute custom sequences, events, and/or regimens 91.67 percent of the day. It performs updates between 3AM - 5AM.\n- If the device attempts to connect to the message broker more than 20 times in a 10 minute period, it will be temporarily blocked fo"
+    },
+    {
+      "id": "4632814c-275f-416c-a925-cd1bcb5fb6d0",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.5 Security\n- FarmBot device logs and web-app logs must be maintained to track user activity, system events and potential security breaches.\n- Communication between critical software componenets are restricted via the use of tokens while using the APIs.\n- Data validation and error checking mechan"
+    },
+    {
+      "id": "ad81898c-7eec-4db9-9352-ee68292ba3fe",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.6 Maintainability\n- Modular design and well-defined interfaces between different components are crucial for independent development, testing and debugging.\n- A clear and concise documentation is needed for future maintenance.\n- A version control system must be utilized for tracking changes and r"
+    },
+    {
+      "id": "fe7da627-596f-4028-a337-5aa94a682ea4",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.5.7 Portability\n- The web-app must allow using modern web standards to be compatible with different devices and browsers."
+    },
+    {
+      "id": "7f6aa09f-2e4a-4d3b-bd37-ec78e8bcd13a",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "3.6 Supporting Information\nFarmBot is an open-source and scalable automated precision farming machine. FarmBot automates repetitive tasks such as planting seeds, watering, and applying nutrients. It allows precise control over various planting parameters like seed spacing, watering schedules. It pro"
+    },
+    {
+      "id": "fe2a55fa-f81a-4f01-bf04-d94b4a24397e",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.1 System Perspective\nFigure 4.1: Improved Context Diagram\nThe improved context diagram is shown in Figure 4.1. It now has Local Weather API and Alexa API as new external entities. The system can get weather data from Local Weather API and add this data to its smart decision-making process. Also, t"
+    },
+    {
+      "id": "e908d208-3b29-4701-b584-d585f9492955",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.2 External Interfaces\nFigure 4.2: Improved External Interface Diagram\n- Local Weather API: The system can get the current weather, temperature, humidity, and wind speed data from this API. The data can be used to make better decisions for the farm.\n- Alexa API: The system can communicate with this"
+    },
+    {
+      "id": "1810d3f9-eb94-4c91-b607-6ab0745e6a65",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.3 Functions\n\u2026\u2026\u2026\u2026\u2026\u2026\nFigure 4.3: Improved Use Case Diagram\nTable 4.1: Tabular description of Activate voice command use case\n\nActors, Activate voice command = End User, VoiceFlow, Amazon Alexa. Description, Activate voice command = End user talks with the virtual assistant Alexa integrated with Voic"
+    },
+    {
+      "id": "67db3712-292a-48cf-8fb0-bae828b08835",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.4 Logical Database Requirements\nFigure 4.7: Improved Logical Database Requirements Diagram\nThe improved logical database requirements diagram is shown in Figure 4.7. The system now has a new table named Weather Data to store weather data. This table has columns for weather data such as temperature"
+    },
+    {
+      "id": "2b562947-2732-4ee6-adf5-d95b08aa6b64",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.5 Design Constraints\n- FarmBot must ensure that the voice data taken from end user must be processed and used in a compliant manner with the data privacy regulations GDPR (General Data Protection Regulation), CCPA (California Consumer Privacy Act).\n- FarmBot must ensure that data privacy regulatio"
+    },
+    {
+      "id": "34f654a5-c223-4595-944d-d55f798c741c",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.1 Usability Requirements\n- Users should be able to successfully execute desired FarmBot actions using clear and concise voice commands.\n- The voice recognition system should understand commands quickly and minimize the need for repeated attempts or corrections.\n- The voice control interface shou"
+    },
+    {
+      "id": "a0a19032-1c77-4e01-b086-5e2e26085f80",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.2 Performance Requirements\n- Average time to execute the sequence indicated by the voice command shall not exceed 5 seconds to ensure user satisfaction.\n- User shall not need to have to repeat their voice command more than 2 times.\n- Voice command interpretation accuracy must be at least 95\n- We"
+    },
+    {
+      "id": "0e19a46f-8441-4714-acbe-5d713e4a7470",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.3 Reliability\n- Speech recognition must be accurate.\n- Potential misinterpretations of voice commands must be handled gracefully, prompting for confirmation or offering alternative options must be implemented.\n- Weather data source must have a high uptime and provide accurate weather information"
+    },
+    {
+      "id": "603a8623-9ef9-4885-8484-b54068498c66",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.4 Availability\n- Voice control functionality must be highly available, downtime due to recognition engine issues must be minimized.\n- Despite weather data feed not being available, system should remain functional and give suggestions based on historical data or user preferences."
+    },
+    {
+      "id": "909c257e-4e45-4337-9c1f-f37070e70038",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.5 Security\n- User voice data of any kind must be anonymized and opt-out option to users must be presented.\n- Secure communication protocols such as HTTPS, SSL/TLS must be followed.\n- FarmBot must not endanger its users due to misinterpreted voice commands"
+    },
+    {
+      "id": "6570ba95-c5a1-46b5-a8ed-09c865445787",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.6 Maintainability\n- Voice control and weather modules must be designed as seperate, well-documented modules to facilitate future improvements or integrations with different speech recognition engines."
+    },
+    {
+      "id": "bab945bf-2a18-428b-8101-2fc9a31f0a34",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.6.7 Portability\n- Speech recognition libraries, APIs used must be protable accros different platforms to maintain compatibility with potential hardware upgrades.\n- Established libraries must be utilized for accessing and parsing weather data formats to ensure compatibility with various weather ser"
+    },
+    {
+      "id": "7d5d07b4-9b22-4f4b-820e-8cdfd00ff877",
+      "metadata": {
+        "source": "/Users/haticetarhan/Desktop/ulak staj/system-test-agent/ulak-analyst-assist/test_analysis_agent/uploads/f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "source_file": "f54494ed-eab9-40c0-a66a-5dc23d4a071d__63abc225-f5ab-4e1f-85c4-b4ada24c7058__FarmBot_SRS_Group55.pdf",
+        "session_id": "c733d938-1e6c-41a1-a70b-60d6ff0398ad"
+      },
+      "document_preview": "4.7 Supporting Information\nIn order to implement these suggestions the following choices are made:\nAmazon Alexa is chosen as the hardware for capturing user voice and sending it to VoiceFlow for processing it. It supports various languages: Japanese, French, Italian, and Spanish ensuring accessibili"
+    }
+  ]
+}

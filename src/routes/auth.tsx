@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,11 +40,8 @@ function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/chat", replace: true });
-    });
-  }, [navigate]);
+  // Auto-redirect removed — users see the login form on /auth
+  // even if they have an existing session.
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +90,7 @@ function AuthPage() {
 
       <div className="relative w-full max-w-md">
         <Link to="/" className="mb-8 flex items-center justify-center gap-3">
-          <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={44} height={44} className="h-11 w-11" />
+          <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={100} height={45} className="h-11 w-auto" />
           <div className="leading-tight">
             <p className="text-lg font-extrabold tracking-tight">ULAK</p>
             <p className="text-xs text-muted-foreground">Quality Test Analyst</p>

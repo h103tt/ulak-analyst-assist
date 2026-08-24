@@ -1,36 +1,387 @@
+##################-----------PACKAGES-----------###################
+###################################################################
 import os
 import re
-import glob
+import time
+import logging
 
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
-from langchain_community.document_loaders import (
-    TextLoader,
-    PDFPlumberLoader,
-    UnstructuredWordDocumentLoader,
-    CSVLoader
-)
+from langchain_community.document_loaders import TextLoader, CSVLoader
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.tools import create_retriever_tool
-from langchain_community.document_loaders.excel import UnstructuredExcelLoader
-from langchain_classic.retrievers import ParentDocumentRetriever
-from langchain_classic.storage import InMemoryStore
 from langchain_core.tools import tool
 from langchain_docling.loader import DoclingLoader
 from langchain_docling.loader import ExportType
 from docling.chunking import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from transformers import AutoTokenizer
+from langchain_community.vectorstores.utils import filter_complex_metadata
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors.cross_encoder_rerank import CrossEncoderReranker
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+
+import debug_artifacts
+import rag_debug
+import retrieval_debug
+from rag_debug import C, _c, field, section, status
+
+log = logging.getLogger("vector_embed")
 
 
+##################-----------MACROS-----------###################
+###################################################################
 AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KB_DIR = os.path.join(AGENT_DIR, "knowledge_base")
+USER_UPLOADS_DIR = os.path.join(AGENT_DIR, "uploads")
+USER_COLLECTIONS_DIR = os.path.join(AGENT_DIR, "chromadb", "user_collections")
 OCR_MIN_CHAR_PER_PAGE = 50
-EXPORT_TYPE = ExportType.MARKDOWN
+EMBED_BATCH_SIZE = 32
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["OMP_NUM_THREADS"] = "1"
 
+# Map user-facing file names to the on-disk copies in USER_UPLOADS_DIR so
+# tools like get_document_structure can resolve them without the original
+# attachment id. Populated by bridge.download_file via register_upload().
+_UPLOAD_REGISTRY: dict[str, str] = {}
+
+
+def register_upload(file_name: str, path: Path) -> None:
+    """Record the on-disk location of an uploaded file for later tools."""
+    _UPLOAD_REGISTRY[file_name] = str(path)
+
+
+def resolve_upload(file_name: str) -> str | None:
+    """Return the on-disk path for an uploaded file name, or None."""
+    if file_name in _UPLOAD_REGISTRY:
+        return _UPLOAD_REGISTRY[file_name]
+    candidates = list(Path(USER_UPLOADS_DIR).rglob(file_name))
+    return str(candidates[0]) if candidates else None
+
+
+######--------models---------#############
+
+embeddings = OllamaEmbeddings(model="nomic-embed-text")  # embedding model (loosely fetches the top 15-20 relevant chunks)
+reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
+compressor = CrossEncoderReranker(model=reranker_model, top_n=5)
+
+
+###############--------KNOWLEDGE BASE DOCS----------###########
+DOCS = [
+    ("Environmental_and_hardware", "MIL-STD-461.pdf",               "MIL-STD-461"),
+    ("Environmental_and_hardware", "MIL-STD-810H_CHG-1.pdf",        "MIL-STD-810H_CHG-1"),
+    ("Environmental_and_hardware", "MIL-STD-1586A.pdf",             "MIL-STD-1586A"),
+    ("Requirements_and_quality",   "830-1998.pdf",                  "830-1998"),
+    ("Requirements_and_quality",   "15288-2023-2.pdf",              "15288-2023-2"),
+    ("Requirements_and_quality",   "29119-1-2022.pdf",              "29119-1-2022"),
+    ("Requirements_and_quality",   "29148-2018.pdf",                "29148-2018"),
+    ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE-Test-Doc-829-2008"),
+    ("Requirements_and_quality",   "ISO-9001-2015.pdf",             "ISO-9001-2015"),
+    ("Requirements_and_quality",   "requirements_and_testing.md",   "requirements_and_testing"),
+    ("Security_and_safety",        "MIL-STD-882E.pdf",              "MIL-STD-882E"),
+    ("Security_and_safety",        "RTCA-DO-160G.pdf",              "RTCA-DO-160G"),
+    ("Security_and_safety",        "SP800-53_REV-3.PDF",            "SP800-53_REV-3"),
+]
+
+DOC_METADATA_LOOKUP = {
+    filename: {"category": category, "standard": standard_label}
+    for category, filename, standard_label in DOCS
+}
+
+
+##############-----tokenizer for docling loader----------########
+hf_tokenizer = HuggingFaceTokenizer(
+    tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True),
+    max_tokens=8192,
+)
+
+
+################-------docling loader for single file-------########
+_DOC_CONVERTER = None
+
+
+def _get_docling_converter():
+    """Shared DocumentConverter so the markdown debug export and the chunking
+    loader reuse the same loaded pipeline/models."""
+    global _DOC_CONVERTER
+    if _DOC_CONVERTER is None:
+        from docling.document_converter import DocumentConverter
+
+        _DOC_CONVERTER = DocumentConverter()
+    return _DOC_CONVERTER
+
+
+def _export_markdown_debug(path: Path) -> None:
+    """Log file facts and export the intermediate Docling markdown to
+    ./debug_output/markdown/ (DEBUG_MODE only)."""
+    import mimetypes
+
+    section("INGESTION", f"File ingestion: {path.name}", C.INGESTION)
+    field("filename", path.name)
+    field("file_size_bytes", path.stat().st_size)
+    field("mime_type", mimetypes.guess_type(path.name)[0] or "unknown")
+    field("started_at", rag_debug.now_iso())
+
+    start = time.perf_counter()
+    result = _get_docling_converter().convert(str(path))
+    markdown = result.document.export_to_markdown()
+    duration_s = round(time.perf_counter() - start, 3)
+    info = debug_artifacts.save_markdown_export(path.stem, markdown)
+    field("conversion_duration_s", duration_s)
+    field("md_char_count", info["chars"])
+    field("md_saved_path", info["path"])
+
+
+def _chunk_stats(source_name: str, docs: list) -> dict:
+    """Log HybridChunker stats + first-N chunk previews, persist a JSON dump."""
+    start = time.perf_counter()
+    char_counts = [len(d.page_content or "") for d in docs]
+    try:
+        token_counts = [
+            len(hf_tokenizer.tokenizer.encode(d.page_content or "")) for d in docs
+        ]
+    except Exception:  # noqa: BLE001 - tokenizer failure must not break ingest
+        token_counts = []
+    duration_s = round(time.perf_counter() - start, 4)
+
+    section("CHUNKING", f"HybridChunker output for {source_name}", C.CHUNKING)
+    field("total_chunks", len(docs))
+    if char_counts:
+        field("avg_chunk_chars", round(sum(char_counts) / len(char_counts), 1))
+        field("min_max_chars", f"{min(char_counts)} / {max(char_counts)}")
+    if token_counts:
+        field("avg_chunk_tokens", round(sum(token_counts) / len(token_counts), 1))
+    field("chunking_duration_s", duration_s)
+
+    dump_path = debug_artifacts.save_chunk_dump(source_name, docs)
+    if dump_path:
+        field("chunk_dump", dump_path)
+
+    if rag_debug.VERBOSE_CHUNKS:
+        nl = chr(10)
+        for idx in range(min(rag_debug.CHUNK_PREVIEW_COUNT, len(docs))):
+            text = docs[idx].page_content or ""
+            head = text[: rag_debug.PREVIEW_HEAD_CHARS].replace(nl, " ")
+            tail = (
+                text[-rag_debug.PREVIEW_TAIL_CHARS :].replace(nl, " ")
+                if len(text) > rag_debug.PREVIEW_HEAD_CHARS
+                else ""
+            )
+            tok = token_counts[idx] if idx < len(token_counts) else "?"
+            print(f"  {_c(C.CHUNKING)}[{idx}]{_c(C.RESET)} chars={len(text)} tokens={tok}")
+            print(f"      metadata: {docs[idx].metadata}")
+            print(f"      head: {head!r}")
+            if tail:
+                print(f"      tail: {tail!r}")
+    return {"total_chunks": len(docs), "duration_s": duration_s}
+
+
+def process_single_file(path: Path):
+    started = time.perf_counter()
+    try:
+        if rag_debug.DEBUG_MODE:
+            _export_markdown_debug(path)
+        loader = DoclingLoader(
+            file_path=str(path),
+            export_type=ExportType.DOC_CHUNKS,
+            chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512),
+        )
+        docs = loader.load()
+
+        file_info = DOC_METADATA_LOOKUP.get(path.name, {})
+
+        for doc in docs:
+            doc.metadata["source_file"] = path.name
+            if "category" in file_info:
+                doc.metadata["category"] = file_info["category"]
+            if "standard" in file_info:
+                doc.metadata["standard"] = file_info["standard"]
+
+        _chunk_stats(path.name, docs)
+        status(
+            "ok",
+            "INGESTION",
+            f"{path.name}: {len(docs)} chunks in {round(time.perf_counter() - started, 2)}s",
+        )
+        return docs
+    except Exception as e:
+        status("err", "INGESTION", f"{path.name} failed: {e}")
+        log.error("docling load failed", extra={"stage": "kb_parse", "meta": {"file": path.name, "error": str(e)}})
+        return []
+
+
+###########--------concurrently load the files to docling---------#########
+def load_concurrently_multi_format(directory_path: str, max_workers: int = 4, extensions: tuple = (".pdf", ".docx", ".xlsx", ".xls")):
+
+    dir_path = Path(directory_path)
+    file_paths = [p for p in dir_path.rglob("*") if p.suffix.lower() in extensions]
+
+    all_documents = []
+    log.info("concurrent load started", extra={"stage": "kb_ingest", "meta": {"files": len(file_paths)}})
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_path = {executor.submit(process_single_file, path): path for path in file_paths}
+
+        for future in as_completed(future_to_path):
+            path = future_to_path[future]
+            try:
+                docs = future.result()
+                all_documents.extend(docs)
+                log.info("file loaded", extra={"stage": "kb_ingest", "meta": {"file": path.name, "chunks": len(docs)}})
+            except Exception as exc:
+                log.error("file generated an exception", extra={"stage": "kb_ingest", "meta": {"file": path.name, "error": str(exc)}})
+
+    return all_documents
+
+
+###########-------knowledge base vector store---------##########
+vector_store = Chroma(
+    collection_name="iso_files",
+    embedding_function=embeddings,
+    persist_directory=os.path.join(AGENT_DIR, "chromadb"),
+)
+
+
+###########--------add chunks to the vector database--------#############
+def _add_with_storage_debug(store, collection_name: str, documents: list) -> list:
+    """Insert documents into ``store`` with storage-integrity logging:
+    count before/after + a JSON snapshot (ids/metas/document previews)."""
+    try:
+        count_before = store._collection.count()
+    except Exception:  # noqa: BLE001 - introspection is best-effort
+        count_before = None
+
+    inserted_ids: list[str] = []
+    metas: list[dict] = []
+    texts: list[str] = []
+    for i in range(0, len(documents), EMBED_BATCH_SIZE):
+        batch = filter_complex_metadata(documents[i : i + EMBED_BATCH_SIZE])
+        ids = store.add_documents(documents=batch)
+        inserted_ids.extend(ids)
+        metas.extend(d.metadata for d in batch)
+        texts.extend(d.page_content or "" for d in batch)
+
+    try:
+        count_after = store._collection.count()
+    except Exception:  # noqa: BLE001
+        count_after = None
+
+    section("STORAGE", f"ChromaDB insert into '{collection_name}'", C.STORAGE)
+    field("collection", collection_name)
+    field("count_before", count_before)
+    field("inserted", len(inserted_ids))
+    field("count_after", count_after)
+    snapshot_path = debug_artifacts.save_chroma_snapshot(
+        collection_name, inserted_ids, metas, texts, count_before, count_after
+    )
+    field("snapshot", snapshot_path)
+    status(
+        "ok",
+        "STORAGE",
+        f"'{collection_name}': {count_before} -> {count_after} documents",
+    )
+    return inserted_ids
+
+
+def add_in_batches(chunks, label="knowledge_base"):
+    """Backwards-compatible wrapper; routes through the instrumented insert."""
+    _add_with_storage_debug(
+        vector_store, "iso_files" if label == "knowledge_base" else label, chunks
+    )
+
+
+###########-------add embeddings to the database-----------##########
+def ingest_knowledge_base():
+    docs = load_concurrently_multi_format(KB_DIR)
+    if docs:
+        log.info("embedding knowledge base", extra={"stage": "kb_ingest", "meta": {"chunks": len(docs)}})
+        add_in_batches(docs)
+    else:
+        log.warning("no docs were loaded", extra={"stage": "kb_ingest"})
+
+
+##########-------so that it wont do the embedding everytime-------##########
+if __name__ == "__main__":
+    ingest_knowledge_base()
+
+
+########--------retrieval of the related chunks----------###########
+retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 15})
+
+# Logged retriever: same base MMR retriever + reranker, but every query logs
+# candidates, distances, pass/filter verdicts and the final context.
+kb_compression_retriever = retrieval_debug.logged_compression_retriever(
+    retriever, compressor, tag="search_testing_standards"
+)
+retriever_tool = create_retriever_tool(
+    kb_compression_retriever,
+    name="search_testing_standards",
+    description=(
+        "Search internal standards documents for systems engineering processes, testing, "
+        "safety, cybersecurity, and requirements engineering guidance. Call this tool for ANY question "
+        "about the content, structure, process groups, definitions, or requirements "
+        "of a standard — not just when generating test cases. "
+        "Each result includes 'standard' and 'category' metadata — always cite the "
+        "'standard' field, never invent a clause number not present in the retrieved text. "
+        "Categories available: "
+        "1. 01_se_process_and_requirements (systems lifecycle and engineering standards), "
+        "2. 02_verification_and_testing (test design and documentation standards), "
+        "3. 03_safety_security_config (military and NIST safety/cybersecurity standards), "
+        "4. 04_requirements (general requirements engineering concepts). "
+        "Always call this tool before answering any question about standard content, and "
+        "before generating test cases or validating a requirement."
+    ),
+)
+
+
+#########--------user document loading according to the doc type---------############
+def _load_binary_with_docling(file_path: str, **loader_kwargs) -> list[Document]:
+    loader = DoclingLoader(
+        file_path=file_path,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512),
+        **loader_kwargs,
+    )
+    return loader.load()
+
+
+def load_document(file_path: str) -> list[Document]:
+    """Loads and chunks user documents with Docling.
+
+    Text-like files (.txt/.md) go through TextLoader, CSV through CSVLoader.
+    Everything else (PDF/DOCX/XLSX/...) goes through Docling. Binary formats
+    that produce no extractable text are retried once with OCR enabled, so
+    scanned/image-only PDFs such as an SRS scan are handled if an OCR engine
+    (EasyOCR by default) is installed.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".csv":
+        log.info("loading csv", extra={"stage": "user_parse", "meta": {"file": file_path}})
+        return CSVLoader(file_path, autodetect_encoding=True).load()
+    if ext in (".txt", ".md"):
+        log.info("loading text", extra={"stage": "user_parse", "meta": {"file": file_path}})
+        return TextLoader(file_path, autodetect_encoding=True).load()
+
+    # Binary formats: try plain Docling first (fast path for text-based PDFs).
+    docs = _load_binary_with_docling(file_path)
+    total_chars = sum(len(d.page_content or "") for d in docs)
+    if total_chars < OCR_MIN_CHAR_PER_PAGE:
+        log.info(
+            "low text extraction, retrying with OCR",
+            extra={"stage": "user_parse", "meta": {"file": file_path, "chars": total_chars}},
+        )
+        docs = _load_binary_with_docling(file_path, convert_kwargs={"ocr": True})
+    log.info(
+        "document parsed",
+        extra={"stage": "user_parse", "meta": {"file": file_path, "chunks": len(docs)}},
+    )
+    return docs
+
+
+#########--------make the chroma collection name valid---------###########
 def sanitize_collection_name(name: str) -> str:
     """Turn an arbitrary string into a valid Chroma collection name:
     3-255 chars, only letters/digits/underscores/hyphens, and must start
@@ -39,252 +390,71 @@ def sanitize_collection_name(name: str) -> str:
     cleaned = cleaned.strip("_-") or "doc"
     return cleaned[:255]
 
-text_splitter_user_docs = RecursiveCharacterTextSplitter(
-    chunk_size=400,
-    chunk_overlap=50,
-    length_function=len,
-)
-text_splitter_kb = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-)
-child_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
-    length_function=len,
-)
-parent_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=2000,
-    chunk_overlap=300,
-    length_function=len,
-)
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
-
-DOCS = [
-    ("01_se_process_and_requirements", "15288-2023-2.pdf",             "ISO/IEC/IEEE 15288:2023"),
-    ("02_verification_and_testing",    "IEEE-Test-Doc-829-2008.pdf",   "IEEE 829-2008"),
-    ("03_safety_security_config",      "MIL-STD-1586A.pdf",            "MIL-STD-1586A"),
-    ("03_safety_security_config",      "NIST_SP_800-171A.pdf",         "NIST SP 800-171A"),
-    ("03_safety_security_config",      "SP800-53_REV-3.PDF",           "SP 800-53 Rev.3"),
-    ("04_requirements",                "requirements_engineering.txt", "requirements_engineering")
-]
-
-DOC_METADATA_LOOKUP = {
-    filename: {"category": category, "standard": standard_label} 
-    for category, filename, standard_label in DOCS
-}
-hf_tokenizer = HuggingFaceTokenizer(
-    tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True),
-    max_tokens=8192,
-)
-def process_single_file(path: Path): 
-    try:
-        loader = DoclingLoader(
-            file_path=str(path), 
-            export_type=ExportType.DOC_CHUNKS, # Ensure export type matches chunking needs
-            chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512)
-        )
-        docs = loader.load()
-        
-        # Look up the metadata for this specific file
-        file_info = DOC_METADATA_LOOKUP.get(path.name, {})
-        
-        # Inject metadata
-        for doc in docs:
-            doc.metadata["source_file"] = path.name
-            if "category" in file_info:
-                doc.metadata["category"] = file_info["category"]
-            if "standard" in file_info:
-                doc.metadata["standard"] = file_info["standard"]
-                
-        return docs
-    except Exception as e:
-        print(f"Error on {path.name}: {e}")
-        return []
-    
-
-
-def load_concurrently_multi_format(directory_path: str, max_workers: int = 4, extensions: tuple = (".pdf", ".docx", ".xlsx", ".xls")): 
-    
-    dir_path = Path(directory_path)
-    file_paths = [p for p in dir_path.rglob("*") if p.suffix.lower() in extensions]
-    
-    all_documents = []
-    print(f"Starting concurrent load for {len(file_paths)} files...")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Map the futures to their file paths
-        future_to_path = {executor.submit(process_single_file, path): path for path in file_paths}
-        
-        for future in as_completed(future_to_path):
-            path = future_to_path[future]
-            try:
-                docs = future.result()
-                all_documents.extend(docs)
-                print(f"Successfully loaded {path.name} ({len(docs)} chunks)")
-            except Exception as exc:
-                print(f"{path.name} generated an exception: {exc}")
-                
-    return all_documents
-
-
-# def ocr_page(pdf_path, page_number):
-#     from pdf2image import convert_from_path
-#     import pytesseract
-#     images = convert_from_path(pdf_path, first_page=page_number+1, last_page=page_number+1)
-#     return pytesseract.image_to_string(images[0])
-
-# def load_with_ocr(path, category, standard_label):
-#     pages = PDFPlumberLoader(path).load()
-#     for i, page in enumerate(pages):
-#         if len(page.page_content.strip()) < OCR_MIN_CHAR_PER_PAGE:
-#             try:
-#                 page.page_content = ocr_page(path, i)
-#             except Exception as e:
-#                 print(f"OCR failed for {path} page {i}: {e}")
-#         page.metadata["category"] = category
-#         page.metadata["standard"] = standard_label
-#         page.metadata["source_file"] = os.path.basename(path)
-#     return pages
-
-vector_store = Chroma(
-    collection_name="iso_files",
-    embedding_function=embeddings,
-    persist_directory=os.path.join(AGENT_DIR, "chromadb"),
-)
-# Only walk the KB and OCR pages if the persisted collection is actually
-# empty. On every warm restart (e.g. `--watch`) the collection already has
-# the ids on disk, so this check must run BEFORE the OCR/chunking work,
-# not after building all_chunks -- otherwise every restart re-OCRs the
-# entire knowledge base for nothing, which is what was stalling startup.
-EMBED_BATCH_SIZE = 32
-from langchain_community.vectorstores.utils import filter_complex_metadata
-def add_in_batches(chunks, label="knowledge_base"):
-    for i in range(0, len(chunks), EMBED_BATCH_SIZE):
-        batch = chunks[i:i + EMBED_BATCH_SIZE]
-        batch = filter_complex_metadata(batch) 
-        vector_store.add_documents(documents=batch)
-    
-        print(f"  embedded {label} batch {i // EMBED_BATCH_SIZE + 1} "
-              f"({i + len(batch)}/{len(chunks)})")
-
-
-def ingest_knowledge_base():
-    docs = load_concurrently_multi_format(KB_DIR)
-    if docs:
-        print(f"Embedding a total of {len(docs)} chunks into Chroma...")
-        add_in_batches(docs)
-    else:
-        print("no docs were loaded")
-
-if __name__ == "__main__":
-    ingest_knowledge_base()
-
-# if not vector_store.get()["ids"]:
-#     for category, filename, standard_label in DOCS:
-#         full_path = os.path.join(KB_DIR, category, filename)
-#         if not os.path.exists(full_path):
-#             print(f"WARNING: missing file {full_path}, skipping")
-#             continue
-#         pages = load_with_ocr(full_path, category, standard_label)
-#         chunks = text_splitter_kb.split_documents(pages)
-#         print(f"Embedding {filename} ({len(chunks)} chunks)...")
-#         add_in_batches(chunks, label=filename)
-retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 5})
-
-retriever_tool = create_retriever_tool(
-    retriever,
-    name="search_testing_standards",
-    description=(
-        "Search internal standards documents for requirements, testing, hardware "
-        "qualification, safety, security guidance. Call this tool for ANY question "
-        "about the content, structure, process groups, definitions, or requirements "
-        "of a standard — not just when generating test cases. "
-        "Each result includes 'standard' and 'category' metadata — always cite the "
-        "'standard' field, never invent a clause number not present in the retrieved text. "
-        "Categories: 01_se_process_and_requirements (lifecycle/requirements standards), "
-        "02_verification_and_testing (test design/documentation standards), "
-        "03_hardware_environmental (EMI/environmental/hardware bus standards), "
-        "04_safety_security_config (safety, cybersecurity, configuration control"
-        "05_quality (quality management). "
-        "Always call this before answering any question about standard content, and "
-        "before generating test cases or validating a requirement."
-    )
-)
-def load_pdf(file_path: str) -> list[Document]:
-    pages = PDFPlumberLoader(file_path).load()
-    empty_pages = [i for i, p in enumerate(pages) if len(p.page_content.strip()) < OCR_MIN_CHAR_PER_PAGE]
-    if len(empty_pages) > len(pages)*0.5:
-        raise ValueError(
-            f"'{os.path.basename(file_path)}' appears to be a scanned/image-only PDF "
-            f"with no extractable text. Please upload a text-based PDF, or convert it "
-            f"with OCR first."
-        )
-    return pages
-
-
-def load_document(file_path: str) -> list[Document]:
-    ext = os.path.splitext(file_path)[1].lower() #extract the document' extension
-
-    if ext == ".pdf":
-        return load_pdf(file_path)
-    if ext == ".docx":
-        return UnstructuredWordDocumentLoader(file_path, mode="elements").load()
-    if ext in (".xlsx", ".xls"):
-        return UnstructuredExcelLoader(file_path, mode="elements").load()
-    if ext == ".csv":
-        return CSVLoader(file_path, autodetect_encoding=True).load()
-    
-    return TextLoader(file_path, autodetect_encoding=True).load() #if its anything else like .txt, .csv, or .md then send it directly
-
 
 def build_session_retriever_tool(
     file_paths: list[str],
     session_id: str,
     collection_suffix: str | None = None,
     k: int = 5,
-):
-    """Index user-uploaded files into a session-scoped, in-memory Chroma
-    collection and return a retriever tool the agent can call.
+) -> tuple[object, dict]:
+    """Index user-uploaded files into a per-session Chroma collection and
+    return ``(retriever_tool, ingest_report)``.
 
-    No persist_directory => vectors live only in process memory, isolated from
-    the internal standards store ('general memory').
+    Isolation: every session (thread) gets its own collection named after the
+    session id (+ an optional suffix so a changed attachment set builds a
+    fresh collection instead of reusing/corrupting the previous one).
 
-    collection_suffix lets callers create a fresh in-memory collection when
-    the attachment set changes, avoiding stale vectors in the Chroma client
-    cache for the same thread.
+    Persistence: collections live under ``chromadb/user_collections``, so the
+    vectors (and the file=>collection mapping) survive process restarts.
+
+    Ingest report: ``{"collection", "files_indexed", "failed_files",
+    "chunk_count"}`` lets bridge.py surface partial failures to the client
+    instead of silently returning a tool-less agent.
     """
-
     failed_files: list[tuple[str, str]] = []
     documents: list[Document] = []
+
     for file_path in file_paths:
         try:
-            documents.extend(load_document(file_path))
+            docs = load_document(file_path)
+            documents.extend(docs)
+            for doc in docs:
+                doc.metadata.setdefault("source_file", os.path.basename(file_path))
+                doc.metadata["session_id"] = session_id
+            log.info(
+                "user file parsed",
+                extra={"stage": "user_ingest", "meta": {"file": file_path, "chunks": len(docs)}},
+            )
         except Exception as exc:
-            print(f"[vector_embed] failed to load {file_path}: {exc}")
+            log.error(
+                "user file failed to load",
+                extra={"stage": "user_ingest", "meta": {"file": file_path, "error": str(exc)}},
+            )
             failed_files.append((os.path.basename(file_path), str(exc)))
 
     if not documents:
         raise RuntimeError(
-        f"No text could be extracted from any uploaded file. Failures: {failed_files}"
-    )
+            f"No text could be extracted from any uploaded file. Failures: {failed_files}"
+        )
 
-    chunks = child_splitter.split_documents(documents)
-
-    name = f"user_upload_{sanitize_collection_name(session_id)}"
+    base_name = f"user_{session_id}"
     if collection_suffix:
-        name = f"{name}_{collection_suffix}"
+        base_name = f"{base_name}_{collection_suffix}"
+    collection_name = sanitize_collection_name(base_name)
 
     session_store = Chroma(
-        collection_name=name,
+        collection_name=collection_name,
         embedding_function=embeddings,
+        persist_directory=USER_COLLECTIONS_DIR,
     )
-    session_store.add_documents(documents=chunks)
-    session_retriever = session_store.as_retriever(search_type="mmr", search_kwargs={"k": k})
+    _add_with_storage_debug(session_store, collection_name, documents)
 
-    return create_retriever_tool(
-        session_retriever,
+    session_retriever = session_store.as_retriever(search_type="mmr", search_kwargs={"k": k * 3})
+    session_compression_retriever = retrieval_debug.logged_compression_retriever(
+        session_retriever, compressor, tag="search_user_document"
+    )
+    session_tool = create_retriever_tool(
+        session_compression_retriever,  # Use the reranker here
         name="search_user_document",
         description=(
             "Search the document(s) uploaded by the user. Use this tool to find "
@@ -293,33 +463,41 @@ def build_session_retriever_tool(
         ),
     )
 
+    report = {
+        "collection": collection_name,
+        "files_indexed": [os.path.basename(p) for p in file_paths
+                          if os.path.basename(p) not in {f for f, _ in failed_files}],
+        "failed_files": failed_files,
+        "chunk_count": len(documents),
+    }
+    log.info(
+        "session indexed",
+        extra={"stage": "user_ingest", "meta": report},
+    )
+    return session_tool, report
+
 
 @tool
 def get_document_structure(file_name: str) -> str:
-    """
-    Use this tool FIRST to understand the overarching structure, Table of Contents, 
-    and general scope of a user-uploaded document. 
-    Provide the exact file name.
-    """
-    # Locate the file in your upload directory (adjust path logic as needed)
-    file_path = os.path.join(AGENT_DIR, "uploads", file_name)
-    
-    if not os.path.exists(file_path):
-        return f"File {file_name} not found."
-    
+    """Use this tool FIRST to understand the overarching structure, Table of Contents,
+    and general scope of a user-uploaded document.
+    Provide the exact file name."""
+    resolved = resolve_upload(file_name)
+    if resolved is None:
+        return (
+            f"File {file_name} not found in the upload directory. "
+            f"Searched {USER_UPLOADS_DIR}."
+        )
     try:
-        # Load the document
-        docs = load_document(file_path)
-        
-        # Heuristic: The TOC and intro are almost always in the first 5 pages/chunks
-        intro_pages = docs[:5] 
-        
+        docs = load_document(resolved)
+        # Heuristic: the TOC and intro are almost always in the first 5 chunks.
+        intro_pages = docs[:5]
         structure_text = f"--- Document Structure / Intro for {file_name} ---\n"
         for page in intro_pages:
             structure_text += page.page_content + "\n"
-            
         return structure_text
-        
     except Exception as e:
         return f"Failed to extract structure: {str(e)}"
+
+
 tools = [retriever_tool, get_document_structure]

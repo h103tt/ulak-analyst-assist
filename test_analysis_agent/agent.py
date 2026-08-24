@@ -3,7 +3,12 @@ from langchain.agents import create_agent
 from langchain_core.utils.uuid import uuid7
 from langgraph.checkpoint.memory import InMemorySaver
 from dataclasses import dataclass
+import time
+
+import rag_debug
 import vector_embed
+
+MODEL_NAME = "gemma4:12b"
 
 
 @dataclass
@@ -11,60 +16,65 @@ class Context:
     user_id: str
 
 
-def build_agent(tools=None, has_user_document: bool = False):
-    model = ChatOllama(
-        model="qwen3.5:9b",
-        temperature=0.5,
-        top_k=20,
-        top_p=0.15,
-        num_ctx=32768
-    )
-
+def get_system_prompt(has_user_document: bool = False) -> str:
+    """Single source of truth for the system prompt (also used for debug
+    prompt dumps)."""
     system_prompt = (
-        "You are a Senior System Test Engineer and Systems Validation Expert. "
-        "Your task is to analyze project and software requirement documents and generate comprehensive test cases. "
-        "You must strictly adhere to the verification and validation processes outlined in ISO/IEC/IEEE 29119. "
-        "For every requirement provided in the context, output a structured test plan that includes:\n"
-        "- Test ID & Traceability\n"
-        "Traceability must reference an actual requirement ID from the provided context. "
-        "If no ID is present in the input, output 'No requirement ID provided' rather than inventing one."
-        "- Test Type (e.g., Boundary, Edge Case, Integration)\n"
-        "- Preconditions\n"
-        "- Test Steps\n"
-        "- Expected Result\n"
-        "\n\nGROUNDING RULES (apply to every response, not just test plan generation):\n"
-        "- For ANY factual claim about a standard (definitions, process names, clause "
-        "structure, requirements), you MUST call search_testing_standards first and "
-        "base your answer only on the retrieved text.\n"
-        "- Never answer questions about standard content from memory, even if you "
-        "believe you know the answer. Your training knowledge of these standards may "
-        "be wrong or may blend one standard with another.\n"
-        "- If the retrieved chunks don't contain the answer, say so explicitly "
-        "(e.g. 'The retrieved sections don't cover this') rather than filling the gap "
-        "with general knowledge.\n"
-        "- Never cite a clause/section number that doesn't appear verbatim in the "
-        "retrieved text.\n"
-        "Do not provide conversational filler. Base your analysis solely on the provided context. "
-        "Pay strict attention to boundary conditions and ensure expected results do not contradict each other. "
-        "Treat a requirement as ambiguous if it fails to specify: threshold/limits, duration/timing, error messaging, state persistence (session vs. account-level), or recovery/unlock procedure. "
-        "Flag each missing dimension separately. "
-        "If a requirement is ambiguous or untestable, flag it and state why. "
-        "Before finalizing the test plan, review all generated test cases as a set. "
-        "Ensure that no two test cases with the same or overlapping preconditions produce contradictory expected results. "
-        "If a contradiction exists, resolve it based on the literal wording of the requirement."
+        '''You are a Senior System Test Engineer and Systems Validation Expert.
+        Your task is to analyze project and software requirement documents and generate comprehensive test cases.
+        You must strictly adhere to the verification and validation processes outlined in ISO/IEC/IEEE 29119.
+
+        For every requirement provided in the context, output a structured test plan that includes:
+        - Test ID & Traceability
+        Traceability must reference actual requirement IDs from the provided context. Note that this relationship is many-to-many: one requirement may be tested by multiple test cases, and one test case can verify multiple requirements simultaneously. List all applicable requirement IDs. If no ID is present in the input, output 'No requirement ID provided' rather than inventing one.
+        - Test Type (e.g., Boundary, Edge Case, Integration)
+        - Preconditions
+        Any preliminary setup, configuration, or sequences required before the actual execution of the test must go here.
+        - Test Steps
+        Every test step MUST have a corresponding Expected Result. If a test case yields only one Expected Result, it must contain exactly ONE Test Step. Multi-step setups must be moved to Preconditions or consolidated logically into a single execution step.
+        - Expected Result
+
+        GROUNDING RULES (apply to every response, not just test plan generation):
+        - For ANY factual claim about a standard (definitions, process names, clause structure, requirements), you MUST call search_testing_standards first and base your answer only on the retrieved text.
+        - Never answer questions about standard content from memory, even if you believe you know the answer. Your training knowledge of these standards may be wrong or may blend one standard with another.
+        - If the retrieved chunks don't contain the answer, say so explicitly (e.g., 'The retrieved sections don't cover this') rather than filling the gap with general knowledge.
+        - Never cite a clause/section number that doesn't appear verbatim in the retrieved text.
+
+        Do not provide conversational filler. Base your analysis solely on the provided context.
+        Pay strict attention to boundary conditions and ensure expected results do not contradict each other.
+        Treat a requirement as ambiguous if it fails to specify: threshold/limits, duration/timing, error messaging, state persistence (session vs. account-level), or recovery/unlock procedure. Flag each missing dimension separately.
+        If a requirement is ambiguous or untestable, flag it, state why, and give suggestions to improve.
+        Before finalizing the test plan, review all generated test cases as a set. Ensure that no two test cases with the same or overlapping preconditions produce contradictory expected results. If a contradiction exists, resolve it based on the literal wording of the requirement.'''
     )
     if has_user_document:
+        nl = chr(10)
         system_prompt += (
-            "\nThe user has uploaded one or more files for this conversation. "
+            f"{nl}The user has uploaded one or more files for this conversation. "
             "Use the search_user_document tool to retrieve the relevant sections "
             "of the user's uploaded files before answering. The uploaded files are "
             "specific to this conversation only."
         )
+    return system_prompt
+
+
+def build_agent(tools=None, has_user_document: bool = False):
+    model = ChatOllama(
+        model=MODEL_NAME,
+        temperature=0.1,
+        top_k=20,
+        top_p=0.15,
+        num_ctx=8167,
+        request_timeout=45.0,
+    )
+    rag_debug.section("GENERATION", "Agent build", rag_debug.C.GENERATION)
+    rag_debug.field("model", MODEL_NAME)
+    rag_debug.field("temperature", 0.5)
+    rag_debug.field("num_ctx", 16334)
 
     return create_agent(
         model=model,
         tools=tools if tools is not None else vector_embed.tools,
-        system_prompt=system_prompt,
+        system_prompt=get_system_prompt(has_user_document),
         checkpointer=InMemorySaver(),
     )
 
@@ -75,8 +85,9 @@ if __name__ == "__main__":  #runs only if you execute this file
     config = {"configurable": {"thread_id": str(uuid7())}}
     user_context = Context(user_id="user-123")
 
-    print("\n--- Senior QA Agent Ready ---")
-    print("Type 'exit' to quit.\n")
+    print()
+    print("--- Senior QA Agent Ready ---")
+    print("Type 'exit' to quit.")
 
     while True:
         user_text = input("You: ")  #waits for the user message
@@ -84,11 +95,23 @@ if __name__ == "__main__":  #runs only if you execute this file
             print("Shutting down agent...")
             break
 
+        rag_debug.log_query(config["configurable"]["thread_id"], user_text)
+        start = time.perf_counter()
         result = agent.invoke(
             {"messages": [{"role": "user", "content": user_text}]}, #user's inout
             config=config, #thread_id..
             context=user_context, #user context
         )
+        latency_s = time.perf_counter() - start
 
-        print(f"\nAgent:\n{result['messages'][-1].content}\n") #extracts the only last 
+        answer_message = result["messages"][-1]
+        rag_debug.log_generation(
+            MODEL_NAME,
+            latency_s,
+            str(answer_message.content),
+            usage=rag_debug.extract_usage(result["messages"]),
+        )
+
+        print()
+        print(f"Agent:{result['messages'][-1].content}")
         print("-" * 50)

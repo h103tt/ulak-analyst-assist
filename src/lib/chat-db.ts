@@ -158,9 +158,14 @@ export function buildAttachmentContext(attachments: Attachment[]): string {
       const header = `FILE: ${a.file_name} (${a.mime_type ?? "unknown type"}, ${
         a.size_bytes ?? 0
       } bytes)`;
+      // For non-text documents (PDFs, DOCX, ...) the content is indexed by the
+      // agent into a session-scoped vector store and is read through the
+      // `search_user_document` tool. We never tell the model a file is
+      // unreadable here — that phrasing leaked straight into model answers
+      // as a false "binary file, contents not extracted" claim.
       return a.extracted_text
         ? `${header}\n---\n${a.extracted_text}\n---`
-        : `${header}\n(binary file — contents not extracted)`;
+        : `${header}\n(content is indexed — use the search_user_document tool to retrieve relevant sections)`;
     })
     .join("\n\n");
 }

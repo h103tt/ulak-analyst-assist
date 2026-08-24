@@ -3,6 +3,8 @@ fastapi
 uvicorn
 httpx
 pydantic
+deepeval
+
 
 # LangChain Ecosystem
 langchain
@@ -14,6 +16,7 @@ langchain-chroma
 langchain-ollama
 langgraph
 langchain-docling
+
 # Document Loaders & Processing
 pdfplumber
 unstructured
@@ -22,3 +25,4 @@ pytesseract
 pandas
 openpyxl
 python-docx
+sentence-transformers

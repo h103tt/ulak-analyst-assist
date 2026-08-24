@@ -40,17 +40,8 @@ const SUGGESTIONS = [
 ];
 
 export function ChatWindow({ threadId, threadTitle }: { threadId: string; threadTitle: string }) {
-  const queryClient = useQueryClient();
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [input, setInput] = useState("");
   const [initialMessages, setInitialMessages] = useState<UIMessage[] | null>(null);
   const savedIds = useRef<Set<string>>(new Set());
-
-  const attachments = useQuery({
-    queryKey: ["attachments", threadId],
-    queryFn: () => listAttachments(threadId),
-  });
 
   useEffect(() => {
     let active = true;
@@ -72,6 +63,34 @@ export function ChatWindow({ threadId, threadTitle }: { threadId: string; thread
       active = false;
     };
   }, [threadId]);
+
+  // Show loader until messages are loaded, so useChat can initialize with the real history
+  if (initialMessages === null) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <ChatWindowInner threadId={threadId} threadTitle={threadTitle} initialMessages={initialMessages} savedIds={savedIds} />;
+}
+
+function ChatWindowInner({ threadId, threadTitle, initialMessages, savedIds }: {
+  threadId: string;
+  threadTitle: string;
+  initialMessages: UIMessage[];
+  savedIds: React.MutableRefObject<Set<string>>;
+}) {
+  const queryClient = useQueryClient();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [input, setInput] = useState("");
+
+  const attachments = useQuery({
+    queryKey: ["attachments", threadId],
+    queryFn: () => listAttachments(threadId),
+  });
 
   const contextText = useMemo(
     () => buildAttachmentContext(attachments.data ?? []),
@@ -97,7 +116,7 @@ export function ChatWindow({ threadId, threadTitle }: { threadId: string; thread
 
   const { messages, sendMessage, status, error } = useChat({
     id: threadId,
-    messages: initialMessages ?? [],
+    messages: initialMessages,
     transport,
     onError: (err) => toast.error(err.message || "The analyst could not respond"),
   });
@@ -242,13 +261,9 @@ export function ChatWindow({ threadId, threadTitle }: { threadId: string; thread
 
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-3xl px-6 py-8">
-          {initialMessages === null ? (
-            <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            </div>
-          ) : messages.length === 0 ? (
+          {messages.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-center">
-              <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={20} height={40} className="h-16 w-16" />
+              <img src="/ulak-logo-beyaz-2.png" alt="ULAK agent mark" width={200} height={90} className="h-auto w-[180px]" />
               <h2 className="mt-6 text-2xl font-bold">How can I assist with your requirement analysis and test generation?</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
                 Attach System Requirement Specifications (SRS), interface control documents, or project specs to generate test cases, analyze traceability, or review requirement coverage.
