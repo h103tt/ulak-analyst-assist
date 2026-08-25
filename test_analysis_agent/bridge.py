@@ -248,35 +248,58 @@ def get_thread_agent(thread_id: str, files: list[UploadedFile], base_agent) -> o
                 pass
 
 
-async def answer_stream(agent_instance, thread_id: str, user_messages: list, context_text: str):
+def _compute_answer_sync(agent_instance, thread_id: str, user_messages: list) -> str:
+    """Blocking work for one turn: agent invoke (retrieval/rerank/query
+    expansion) plus the answer-refinement pass. Runs in a worker thread,
+    polled with heartbeats by answer_stream below."""
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": AGENT_RECURSION_LIMIT,
+    }
+    user_context = agent.Context(user_id=thread_id)
+
+    result = agent_instance.invoke(
+        {"messages": user_messages},
+        config=config,
+        context=user_context,
+    )
+    answer = extract_answer(result)
+
     try:
-        config = {
-            "configurable": {"thread_id": thread_id},
-            "recursion_limit": AGENT_RECURSION_LIMIT,
-        }
-        user_context = agent.Context(user_id=thread_id)
-
-        result = await asyncio.get_running_loop().run_in_executor(
-            None,
-            lambda: agent_instance.invoke(
-                {"messages": user_messages},
-                config=config,
-                context=user_context,
-            ),
-        )
-        answer = extract_answer(result)
-
-        try:
-            aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
-            question = extract_question(user_messages)
-            answer = refine.refine_answer(question, aggregated_context, answer)
-        except Exception:
-            traceback.print_exc()
-            # Refinement is a quality pass on top of an already-valid draft --
-            # if it fails, keep streaming the draft rather than losing the turn.
-    except Exception as exc:
+        aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
+        question = extract_question(user_messages)
+        answer = refine.refine_answer(question, aggregated_context, answer)
+    except Exception:
         traceback.print_exc()
-        answer = f"Agent error: {exc}"
+        # Refinement is a quality pass on top of an already-valid draft --
+        # if it fails, keep streaming the draft rather than losing the turn.
+
+    return answer
+
+
+# How often to emit an SSE heartbeat comment while the agent is still
+# working. The local model can take minutes to answer a multi-step question
+# (retrieval + rerank + query expansion + refinement), and a response with
+# no bytes on the wire for that long gets treated as a dead connection by
+# some browsers/local security software, which aborts the fetch with a
+# generic "Failed to fetch" even though the server is still working.
+HEARTBEAT_INTERVAL_SECONDS = 10
+
+
+async def answer_stream(agent_instance, thread_id: str, user_messages: list, context_text: str):
+    future = asyncio.get_running_loop().run_in_executor(
+        None, lambda: _compute_answer_sync(agent_instance, thread_id, user_messages)
+    )
+    while True:
+        try:
+            answer = await asyncio.wait_for(asyncio.shield(future), timeout=HEARTBEAT_INTERVAL_SECONDS)
+            break
+        except asyncio.TimeoutError:
+            yield ": keep-alive\n\n"
+        except Exception as exc:
+            traceback.print_exc()
+            answer = f"Agent error: {exc}"
+            break
 
     yield sse({"type": "text-start", "id": "text-1"})
     for i in range(0, len(answer), 48):
