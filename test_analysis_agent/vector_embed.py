@@ -1,3 +1,11 @@
+"""Knowledge base ingestion and retrieval. The retriever built here combines
+query expansion (MultiQueryRetriever), cross-encoder re-ranking, and MMR
+candidate selection to handle ambiguous/multi-step questions -- see
+build_expanded_retriever / build_reranking_retriever below and the
+"RAG pipeline" section in README.md. Query reformulation and multi-hop
+retrieval across standards are handled at the agent level (agent.py's
+system prompt), not here."""
+
 import os
 import re
 import glob
