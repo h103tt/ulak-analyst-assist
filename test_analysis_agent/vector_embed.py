@@ -16,9 +16,12 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.tools import create_retriever_tool
 from langchain_community.document_loaders.excel import UnstructuredExcelLoader
-from langchain_classic.retrievers import ParentDocumentRetriever
-from langchain_classic.storage import InMemoryStore
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
+from langchain_classic.retrievers.multi_query import MultiQueryRetriever
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 from langchain_core.tools import tool
+from model import get_model
 from langchain_docling.loader import DoclingLoader
 from langchain_docling.loader import ExportType
 from docling.chunking import HybridChunker
@@ -39,24 +42,9 @@ def sanitize_collection_name(name: str) -> str:
     cleaned = cleaned.strip("_-") or "doc"
     return cleaned[:255]
 
-text_splitter_user_docs = RecursiveCharacterTextSplitter(
-    chunk_size=400,
-    chunk_overlap=50,
-    length_function=len,
-)
-text_splitter_kb = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-)
 child_splitter = RecursiveCharacterTextSplitter(
     chunk_size=500,
     chunk_overlap=50,
-    length_function=len,
-)
-parent_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=2000,
-    chunk_overlap=300,
     length_function=len,
 )
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
@@ -78,7 +66,43 @@ hf_tokenizer = HuggingFaceTokenizer(
     tokenizer=AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True),
     max_tokens=8192,
 )
-def process_single_file(path: Path): 
+
+# Loaded once at import time (not per-query) -- a small local cross-encoder
+# used to rerank a wider MMR candidate set down to the final top-k, instead
+# of trusting embedding-similarity + MMR diversity alone.
+RERANK_CANDIDATE_MULTIPLIER = 4
+cross_encoder = HuggingFaceCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+
+def build_reranking_retriever(base_vector_store: Chroma, k: int, search_type: str = "mmr"):
+    """Retrieve a wider candidate set (k * RERANK_CANDIDATE_MULTIPLIER) via the
+    base vector store, then rerank down to the final top-k with a local
+    cross-encoder -- retrieve-then-rerank, cheaper and more accurate than
+    relying on embedding similarity/MMR diversity alone."""
+    base_retriever = base_vector_store.as_retriever(
+        search_type=search_type,
+        search_kwargs={"k": k * RERANK_CANDIDATE_MULTIPLIER},
+    )
+    reranker = CrossEncoderReranker(model=cross_encoder, top_n=k)
+    return ContextualCompressionRetriever(base_compressor=reranker, base_retriever=base_retriever)
+
+
+def build_expanded_retriever(base_vector_store: Chroma, k: int, search_type: str = "mmr"):
+    """Reranked retriever (build_reranking_retriever) wrapped in query
+    expansion/reformulation: the shared local LLM generates a couple of
+    alternate phrasings of the query, each is retrieved+reranked separately,
+    and the results are merged and de-duplicated. Improves recall on
+    ambiguous or oddly-phrased questions at the cost of a few extra (local,
+    already-loaded-model) LLM calls per turn."""
+    reranked_retriever = build_reranking_retriever(base_vector_store, k, search_type=search_type)
+    return MultiQueryRetriever.from_llm(
+        retriever=reranked_retriever,
+        llm=get_model(),
+        include_original=True,
+    )
+
+
+def process_single_file(path: Path):
     try:
         loader = DoclingLoader(
             file_path=str(path), 
@@ -191,7 +215,7 @@ if __name__ == "__main__":
 #         chunks = text_splitter_kb.split_documents(pages)
 #         print(f"Embedding {filename} ({len(chunks)} chunks)...")
 #         add_in_batches(chunks, label=filename)
-retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 5})
+retriever = build_expanded_retriever(vector_store, k=5)
 
 retriever_tool = create_retriever_tool(
     retriever,
@@ -281,7 +305,7 @@ def build_session_retriever_tool(
         embedding_function=embeddings,
     )
     session_store.add_documents(documents=chunks)
-    session_retriever = session_store.as_retriever(search_type="mmr", search_kwargs={"k": k})
+    session_retriever = build_expanded_retriever(session_store, k=k)
 
     return create_retriever_tool(
         session_retriever,

@@ -1,9 +1,30 @@
-from langchain_ollama import ChatOllama
 from langchain.agents import create_agent
+from langchain.agents.middleware import wrap_model_call
+from langchain_core.messages import trim_messages
 from langchain_core.utils.uuid import uuid7
 from langgraph.checkpoint.memory import InMemorySaver
 from dataclasses import dataclass
+from model import get_model
 import vector_embed
+
+# num_ctx=32768 total. Reserve room for the system prompt (~600 tokens),
+# retrieved tool context (5 chunks x ~512 tokens ~= 2500), and response
+# headroom, leaving this much for conversation history sent to the model.
+# The full history still lives in InMemorySaver -- this only bounds what
+# gets sent to the model on each call, so /trace still sees everything.
+HISTORY_TOKEN_BUDGET = 24000
+
+
+@wrap_model_call
+def trim_history_middleware(request, handler):
+    trimmed = trim_messages(
+        request.messages,
+        strategy="last",
+        token_counter=request.model,
+        max_tokens=HISTORY_TOKEN_BUDGET,
+        start_on="human",
+    )
+    return handler(request.override(messages=trimmed))
 
 
 @dataclass
@@ -12,13 +33,7 @@ class Context:
 
 
 def build_agent(tools=None, has_user_document: bool = False):
-    model = ChatOllama(
-        model="qwen3.5:9b",
-        temperature=0.5,
-        top_k=20,
-        top_p=0.15,
-        num_ctx=32768
-    )
+    model = get_model()
 
     system_prompt = (
         "You are a Senior System Test Engineer and Systems Validation Expert. "
@@ -32,6 +47,16 @@ def build_agent(tools=None, has_user_document: bool = False):
         "- Preconditions\n"
         "- Test Steps\n"
         "- Expected Result\n"
+        "\n\nQUERY REFORMULATION (apply before every retriever tool call):\n"
+        "- The user's latest message is often an elliptical follow-up (e.g. 'what "
+        "about the timing requirement', 'and for the other standard?') that only "
+        "makes sense combined with earlier turns. Before calling a search tool, "
+        "silently rewrite it into a complete, standalone query that folds in the "
+        "relevant entities/standard/topic from the conversation so far -- pass "
+        "that rewritten query as the tool argument, not the raw follow-up text.\n"
+        "- If a question spans more than one standard or compares two requirements, "
+        "issue a separate, focused search call per standard/topic rather than one "
+        "combined query.\n"
         "\n\nGROUNDING RULES (apply to every response, not just test plan generation):\n"
         "- For ANY factual claim about a standard (definitions, process names, clause "
         "structure, requirements), you MUST call search_testing_standards first and "
@@ -66,6 +91,7 @@ def build_agent(tools=None, has_user_document: bool = False):
         tools=tools if tools is not None else vector_embed.tools,
         system_prompt=system_prompt,
         checkpointer=InMemorySaver(),
+        middleware=[trim_history_middleware],
     )
 
 

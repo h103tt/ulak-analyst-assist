@@ -21,6 +21,7 @@ if AGENT_DIR not in sys.path:
     sys.path.insert(0, AGENT_DIR)
 
 import agent
+import refine
 import vector_embed
 
 
@@ -97,6 +98,16 @@ def extract_answer(result) -> str:
     return text_of(messages[-1].content)
 
 
+def extract_question(user_messages: list) -> str:
+    """The actual user question for this turn, skipping the synthetic
+    'Attached file context:' message chat() appends when files are attached."""
+    for m in reversed(user_messages):
+        content = m.get("content", "") if isinstance(m, dict) else ""
+        if isinstance(content, str) and not content.startswith("Attached file context:"):
+            return content
+    return user_messages[-1].get("content", "") if user_messages else ""
+
+
 def message_to_dict(message) -> dict:
     """Convert a LangChain message into a plain JSON-serializable dict so a
     caller can inspect tool calls and tool results, not just the final text."""
@@ -124,6 +135,26 @@ def message_to_dict(message) -> dict:
 
 def sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+CONTEXT_CHAR_BUDGET = 60000
+
+# LangGraph's default recursion_limit (25 graph steps) can be too tight for
+# multi-hop questions that need several sequential tool calls (e.g. comparing
+# two standards) -- raised so those don't get cut off mid-reasoning.
+AGENT_RECURSION_LIMIT = 50
+
+
+def truncate_context(text: str, max_chars: int = CONTEXT_CHAR_BUDGET) -> str:
+    """Cap attached-file context at max_chars, cutting on a whitespace boundary
+    instead of mid-word/mid-clause so the tail isn't a broken fragment that
+    contradicts what the KB retriever returns."""
+    if len(text) <= max_chars:
+        return text
+    cut = text.rfind(" ", 0, max_chars)
+    if cut <= 0:
+        cut = max_chars
+    return text[:cut] + "\n...[context truncated]"
 
 
 def files_signature(files: list[UploadedFile]) -> str:
@@ -219,7 +250,10 @@ def get_thread_agent(thread_id: str, files: list[UploadedFile], base_agent) -> o
 
 async def answer_stream(agent_instance, thread_id: str, user_messages: list, context_text: str):
     try:
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "recursion_limit": AGENT_RECURSION_LIMIT,
+        }
         user_context = agent.Context(user_id=thread_id)
 
         result = await asyncio.get_running_loop().run_in_executor(
@@ -231,6 +265,15 @@ async def answer_stream(agent_instance, thread_id: str, user_messages: list, con
             ),
         )
         answer = extract_answer(result)
+
+        try:
+            aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
+            question = extract_question(user_messages)
+            answer = refine.refine_answer(question, aggregated_context, answer)
+        except Exception:
+            traceback.print_exc()
+            # Refinement is a quality pass on top of an already-valid draft --
+            # if it fails, keep streaming the draft rather than losing the turn.
     except Exception as exc:
         traceback.print_exc()
         answer = f"Agent error: {exc}"
@@ -283,7 +326,10 @@ async def trace(body: TraceRequestBody):
             None,
             lambda: agent_instance.invoke(
                 {"messages": [{"role": "user", "content": body.message}]},
-                config={"configurable": {"thread_id": body.thread_id}},
+                config={
+                    "configurable": {"thread_id": body.thread_id},
+                    "recursion_limit": AGENT_RECURSION_LIMIT,
+                },
                 context=agent.Context(user_id=body.thread_id),
             ),
         )
@@ -310,6 +356,18 @@ async def trace(body: TraceRequestBody):
             and bool(str(m.get("content", "")).strip())
             for m in messages
         ),
+        "tool_call_sequence": [
+            tc["name"]
+            for m in messages
+            if m["type"] == "AIMessage"
+            for tc in m.get("tool_calls", [])
+        ],
+        "retrieval_hop_count": sum(
+            1
+            for m in messages
+            if m["type"] == "ToolMessage"
+            and m.get("name") in ("search_testing_standards", "search_user_document")
+        ),
         "answer": extract_answer(result),
     }
     return trace_data
@@ -334,7 +392,7 @@ async def chat(body: ChatRequestBody):
 
     if body.context:
         user_messages.append(
-            {"role": "user", "content": f"Attached file context:\n{body.context[:60000]}"}
+            {"role": "user", "content": f"Attached file context:\n{truncate_context(body.context)}"}
         )
 
     agent_instance = get_thread_agent(body.thread_id, body.files, base_agent)

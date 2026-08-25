@@ -48,7 +48,7 @@ def run_trace(prompt: str) -> None:
     thread_id = "trace-inspect"
     result = agent.invoke(
         {"messages": [{"role": "user", "content": prompt}]},
-        config={"configurable": {"thread_id": thread_id}},
+        config={"configurable": {"thread_id": thread_id}, "recursion_limit": 50},
         context=agent_mod.Context(user_id=thread_id),
     )
 

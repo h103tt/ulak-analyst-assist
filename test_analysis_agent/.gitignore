@@ -1,1 +1,3 @@
-test_analysis_agent/chromadb/
+chromadb/
+__pycache__/
+*.pyc
