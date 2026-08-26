@@ -101,6 +101,21 @@ hf_tokenizer = HuggingFaceTokenizer(
 ################-------docling loader for single file-------########
 _DOC_CONVERTER = None
 
+def build_expanded_retriever(base_vector_store: Chroma, k: int, search_type: str = "mmr"):
+    """Reranked retriever (build_reranking_retriever) wrapped in query
+    expansion/reformulation: the shared local LLM generates a couple of
+    alternate phrasings of the query, each is retrieved+reranked separately,
+    and the results are merged and de-duplicated. Improves recall on
+    ambiguous or oddly-phrased questions at the cost of a few extra (local,
+    already-loaded-model) LLM calls per turn."""
+    reranked_retriever = build_reranking_retriever(base_vector_store, k, search_type=search_type)
+    return MultiQueryRetriever.from_llm(
+        retriever=reranked_retriever,
+        llm=get_model(),
+        include_original=True,
+    )
+
+
 
 def _get_docling_converter():
     """Shared DocumentConverter so the markdown debug export and the chunking
