@@ -23,6 +23,7 @@ if AGENT_DIR not in sys.path:
 
 import agent
 import rag_debug
+import refine
 import vector_embed
 from pipeline_logging import (
     add_stage,
@@ -114,6 +115,16 @@ def extract_answer(result) -> str:
     return text_of(messages[-1].content)
 
 
+def extract_question(user_messages: list) -> str:
+    """The actual user question for this turn, skipping the synthetic
+    'Attached file context:' message appended when a file context is sent."""
+    for m in reversed(user_messages):
+        content = m.get("content", "") if isinstance(m, dict) else ""
+        if isinstance(content, str) and not content.startswith("Attached file context:"):
+            return content
+    return user_messages[-1].get("content", "") if user_messages else ""
+
+
 def message_to_dict(message) -> dict:
     """Convert a LangChain message into a plain JSON-serializable dict so a
     caller can inspect tool calls and tool results, not just the final text."""
@@ -144,14 +155,34 @@ def sse(data: dict) -> str:
 
 
 # How often to emit an SSE keep-alive while the agent is still computing.
-# Long RAG runs can take minutes; without traffic on the wire, dev proxies
-# and browsers treat the idle connection as dead and the client never
-# processes the answer that eventually arrives.
+# Long RAG runs (retrieval + rerank + query expansion + refinement) can take
+# minutes; without traffic on the wire, dev proxies and browsers treat the
+# idle connection as dead and the client never processes the answer that
+# eventually arrives.
 HEARTBEAT_INTERVAL = 15.0
+
+CONTEXT_CHAR_BUDGET = 60000
+
+# LangGraph's default recursion_limit (25 graph steps) can be too tight for
+# multi-hop questions that need several sequential tool calls (e.g. comparing
+# two standards) -- raised so those don't get cut off mid-reasoning.
+AGENT_RECURSION_LIMIT = 50
+
+
+def truncate_context(text: str, max_chars: int = CONTEXT_CHAR_BUDGET) -> str:
+    """Cap attached-file context at max_chars, cutting on a whitespace boundary
+    instead of mid-word/mid-clause so the tail isn't a broken fragment that
+    contradicts what the KB retriever returns."""
+    if len(text) <= max_chars:
+        return text
+    cut = text.rfind(" ", 0, max_chars)
+    if cut <= 0:
+        cut = max_chars
+    return text[:cut] + "\n...[context truncated]"
 
 
 def files_signature(files: list[UploadedFile]) -> str:
-    """Hash of stable attachment ids+names — rebuilt when the file set
+    """Hash of stable attachment ids+names -- rebuilt when the file set
     changes. Signed URLs are intentionally excluded: they change on every
     request and would otherwise defeat the per-thread agent cache."""
     digest = hashlib.sha256()
@@ -203,7 +234,7 @@ def get_thread_agent(
     InMemorySaver (conversation memory) and its own persistent Chroma
     collection (file memory, named after the thread id).
 
-    Partial failures are NOT swallowed silently anymore: the returned ingest
+    Partial failures are NOT swallowed silently: the returned ingest
     report carries ``failed_files`` / ``error`` so /chat can stream a warning
     to the client while still answering with whatever loaded successfully.
     """
@@ -300,73 +331,74 @@ def get_thread_agent(
         return fallback_agent, report
 
 
-async def answer_stream(
+def _tool_message_summaries(messages: list) -> list[dict]:
+    """Name + preview pairs for every ToolMessage in an agent result."""
+    return [
+        {
+            "name": getattr(m, "name", "") or "",
+            "content_preview": text_of(getattr(m, "content", ""))[:400],
+        }
+        for m in messages
+        if type(m).__name__ == "ToolMessage"
+    ]
+
+
+def _compute_answer_sync(
     agent_instance,
     thread_id: str,
     user_messages: list,
-    context_text: str,
+    started: float,
     trace_id: str = "",
-    ingest_report: dict | None = None,
-):
-    answer = ""
-    start = time.perf_counter()
-
-    # Announce the assistant message BEFORE the slow agent invocation so the
-    # client creates the message slot immediately and the connection carries
-    # traffic from the first moment.
-    start_payload: dict = {"type": "start"}
-    if ingest_report and ingest_report.get("failed_files"):
-        start_payload["file_indexing"] = {
-            "warnings": [
-                f"{name}: {err}" for name, err in ingest_report["failed_files"]
-            ],
-            "files_indexed": ingest_report.get("files_indexed", []),
-        }
-    yield sse(start_payload)
-    yield sse({"type": "text-start", "id": "text-1"})
-
-    config = {"configurable": {"thread_id": thread_id}}
-    user_context = agent.Context(user_id=thread_id)
-    last_user_text = next(
-        (m["content"] for m in reversed(user_messages) if m["role"] == "user"),
-        "",
-    )
-    rag_debug.log_query(thread_id, last_user_text)
-
-    def _invoke():
+    has_user_document: bool = False,
+) -> str:
+    """Blocking work for one turn: agent invoke (retrieval/rerank/query
+    expansion) plus the answer-refinement pass. Runs in a worker thread,
+    polled with heartbeats by answer_stream below. Raises on invoke failure;
+    refinement failure only degrades back to the draft answer."""
+    if trace_id:
         # contextvars do NOT propagate into the executor thread, so set the
-        # trace_id there so logs emitted during the agent run correlate.
-        if trace_id:
-            trace_id_var.set(trace_id)
-        return agent_instance.invoke(
-            {"messages": user_messages},
-            config=config,
-            context=user_context,
-        )
+        # trace_id there so logs emitted during the run correlate.
+        trace_id_var.set(trace_id)
 
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": AGENT_RECURSION_LIMIT,
+    }
+    user_context = agent.Context(user_id=thread_id)
+
+    result = agent_instance.invoke(
+        {"messages": user_messages},
+        config=config,
+        context=user_context,
+    )
+    raw_answer = extract_answer(result)
+
+    # Answer refinement pass: check citations/contradictions against the
+    # aggregated retrieved context before the draft reaches the user. A
+    # quality-only step -- if it fails, keep streaming the draft rather than
+    # losing the turn.
     try:
-        # Run the blocking agent call in the executor, but keep the SSE stream
-        # alive with comment-only keep-alives while it works. Comment lines are
-        # ignored by SSE parsers (including the AI SDK client) but prevent
-        # proxies/browsers from declaring the idle connection dead.
-        invoke_task = asyncio.get_running_loop().run_in_executor(None, _invoke)
-        while True:
-            done, _pending = await asyncio.wait({invoke_task}, timeout=HEARTBEAT_INTERVAL)
-            if done:
-                break
-            yield ": keep-alive\n\n"
+        aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
+        question = extract_question(user_messages)
+        answer = refine.refine_answer(question, aggregated_context, raw_answer)
+        refined = answer != raw_answer
+    except Exception:
+        traceback.print_exc()
+        answer, refined = raw_answer, False
 
-        result = invoke_task.result()
-        answer = extract_answer(result)
+    # Observability must never break the answer itself: log failures here
+    # don't propagate to answer_stream.
+    try:
+        last_user_text = extract_question(user_messages)
         rag_debug.log_generation(
             agent.MODEL_NAME,
-            time.perf_counter() - start,
+            time.perf_counter() - started,
             answer,
             usage=rag_debug.extract_usage(result.get("messages", [])),
         )
         rag_debug.log_prompt_assembled(
             thread_id,
-            agent.get_system_prompt(has_user_document=ingest_report is not None),
+            agent.get_system_prompt(has_user_document=has_user_document),
             [
                 (
                     getattr(m, "name", "") or "tool",
@@ -384,16 +416,67 @@ async def answer_stream(
                 "agent_invoke_done",
                 status="ok",
                 answer_chars=len(answer),
+                refined=refined,
             )
-            summaries = [
-                {
-                    "name": getattr(m, "name", "") or "",
-                    "content_preview": text_of(getattr(m, "content", ""))[:400],
-                }
-                for m in result.get("messages", [])
-                if type(m).__name__ == "ToolMessage"
-            ]
-            add_tool_summaries(trace_id, summaries)
+            add_tool_summaries(trace_id, _tool_message_summaries(result.get("messages", [])))
+    except Exception:
+        traceback.print_exc()
+
+    return answer
+
+
+async def answer_stream(
+    agent_instance,
+    thread_id: str,
+    user_messages: list,
+    context_text: str,
+    trace_id: str = "",
+    ingest_report: dict | None = None,
+):
+    start = time.perf_counter()
+
+    # Announce the assistant message BEFORE the slow agent invocation so the
+    # client creates the message slot immediately and the connection carries
+    # traffic from the first moment. Partial indexing failures ride along as
+    # warnings so the user knows which attachments didn't make it in.
+    start_payload: dict = {"type": "start"}
+    if ingest_report and ingest_report.get("failed_files"):
+        start_payload["file_indexing"] = {
+            "warnings": [
+                f"{name}: {err}" for name, err in ingest_report["failed_files"]
+            ],
+            "files_indexed": ingest_report.get("files_indexed", []),
+        }
+    yield sse(start_payload)
+    yield sse({"type": "text-start", "id": "text-1"})
+
+    rag_debug.log_query(thread_id, extract_question(user_messages))
+
+    try:
+        # Run the blocking agent call in the executor, but keep the SSE stream
+        # alive with comment-only keep-alives while it works. Comment lines are
+        # ignored by SSE parsers (including the AI SDK client) but prevent
+        # proxies/browsers from declaring the idle connection dead.
+        invoke_task = asyncio.get_running_loop().run_in_executor(
+            None,
+            lambda: _compute_answer_sync(
+                agent_instance,
+                thread_id,
+                user_messages,
+                start,
+                trace_id=trace_id,
+                has_user_document=ingest_report is not None,
+            ),
+        )
+        while True:
+            done, _pending = await asyncio.wait({invoke_task}, timeout=HEARTBEAT_INTERVAL)
+            if done:
+                break
+            yield ": keep-alive\n\n"
+
+        answer = invoke_task.result()
+        if trace_id:
+            add_stage(trace_id, "stream_complete", status="ok")
     except Exception as exc:
         traceback.print_exc()
         answer = f"Agent error: {exc}"
@@ -469,14 +552,18 @@ async def trace(body: TraceRequestBody):
         return JSONResponse(status_code=400, content={"error": "Message is required"})
 
     trace_id = create_run(body.thread_id, "trace")
-    agent_instance, ingest_report = get_thread_agent(body.thread_id, [], base_agent)
+    agent_instance, _ingest_report = get_thread_agent(body.thread_id, [], base_agent)
 
     try:
+
         def _invoke():
             trace_id_var.set(trace_id)
             return agent_instance.invoke(
                 {"messages": [{"role": "user", "content": body.message}]},
-                config={"configurable": {"thread_id": body.thread_id}},
+                config={
+                    "configurable": {"thread_id": body.thread_id},
+                    "recursion_limit": AGENT_RECURSION_LIMIT,
+                },
                 context=agent.Context(user_id=body.thread_id),
             )
 
@@ -508,6 +595,20 @@ async def trace(body: TraceRequestBody):
             and bool(str(m.get("content", "")).strip())
             for m in messages
         ),
+        # Order of retrieval tool calls across the whole turn -- shows whether
+        # the KB was hit at all and how many hops it took.
+        "tool_call_sequence": [
+            tc["name"]
+            for m in messages
+            if m["type"] == "AIMessage"
+            for tc in m.get("tool_calls", [])
+        ],
+        "retrieval_hop_count": sum(
+            1
+            for m in messages
+            if m["type"] == "ToolMessage"
+            and m.get("name") in ("search_testing_standards", "search_user_document")
+        ),
         "answer": extract_answer(result),
     }
     return trace_data
@@ -532,7 +633,7 @@ async def chat(body: ChatRequestBody):
 
     if body.context:
         user_messages.append(
-            {"role": "user", "content": f"Attached file context:\n{body.context[:60000]}"}
+            {"role": "user", "content": f"Attached file context:\n{truncate_context(body.context)}"}
         )
 
     trace_id = create_run(body.thread_id, "chat")
@@ -542,7 +643,7 @@ async def chat(body: ChatRequestBody):
         "agent_prepared",
         status="ok",
         meta={
-            "has_user_document": any(files := body.files),
+            "has_user_document": bool(body.files),
             "failed_files": len(ingest_report.get("failed_files", [])),
         },
     )

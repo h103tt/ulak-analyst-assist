@@ -1,17 +1,30 @@
 from langchain_ollama import ChatOllama
+from langchain.agents.middleware import wrap_model_call
 from langchain.agents import create_agent
 from langchain_core.utils.uuid import uuid7
 from langgraph.checkpoint.memory import InMemorySaver
 from dataclasses import dataclass
+from langchain_core.messages import trim_messages
 import time
 
 import rag_debug
 import vector_embed
 
 MODEL_NAME = "gemma4:12b"
-
+MODEL_PROVIDER = "ollama"
 
 HISTORY_TOKEN_BUDGET = 24000
+
+def get_llm():
+    model = ChatOllama(
+        model=MODEL_NAME,
+        temperature=0.1,
+        top_k=20,
+        top_p=0.15,
+        num_ctx=16384,
+        request_timeout=45.0,
+    )
+    return model
 
 
 @wrap_model_call
@@ -30,10 +43,9 @@ class Context:
     user_id: str
 
 
-def build_agent(tools=None, has_user_document: bool = False):
+def get_system_prompt(has_user_document: bool = False) -> str:
     """Single source of truth for the system prompt (also used for debug
-    prompt dumps)."""
-    
+    prompt dumps and by bridge.py)."""
     system_prompt = (
         '''
         You are a Senior System Test Engineer and Systems Validation Expert.
@@ -100,11 +112,15 @@ def build_agent(tools=None, has_user_document: bool = False):
             "of the user's uploaded files before answering. The uploaded files are "
             "specific to this conversation only."
         )
+    return system_prompt
 
+
+def build_agent(tools=None, has_user_document: bool = False):
+    """Build the QA agent around the shared system prompt."""
     return create_agent(
-        model=MODEL_NAME,
+        model=get_llm(),
         tools=tools if tools is not None else vector_embed.tools,
-        system_prompt=system_prompt,
+        system_prompt=get_system_prompt(has_user_document),
         checkpointer=InMemorySaver(),
         middleware=[trim_history_middleware],
     )
