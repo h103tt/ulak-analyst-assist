@@ -143,6 +143,13 @@ def sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+# How often to emit an SSE keep-alive while the agent is still computing.
+# Long RAG runs can take minutes; without traffic on the wire, dev proxies
+# and browsers treat the idle connection as dead and the client never
+# processes the answer that eventually arrives.
+HEARTBEAT_INTERVAL = 15.0
+
+
 def files_signature(files: list[UploadedFile]) -> str:
     """Hash of stable attachment ids+names — rebuilt when the file set
     changes. Signed URLs are intentionally excluded: they change on every
@@ -303,27 +310,53 @@ async def answer_stream(
 ):
     answer = ""
     start = time.perf_counter()
-    try:
-        config = {"configurable": {"thread_id": thread_id}}
-        user_context = agent.Context(user_id=thread_id)
-        last_user_text = next(
-            (m["content"] for m in reversed(user_messages) if m["role"] == "user"),
-            "",
+
+    # Announce the assistant message BEFORE the slow agent invocation so the
+    # client creates the message slot immediately and the connection carries
+    # traffic from the first moment.
+    start_payload: dict = {"type": "start"}
+    if ingest_report and ingest_report.get("failed_files"):
+        start_payload["file_indexing"] = {
+            "warnings": [
+                f"{name}: {err}" for name, err in ingest_report["failed_files"]
+            ],
+            "files_indexed": ingest_report.get("files_indexed", []),
+        }
+    yield sse(start_payload)
+    yield sse({"type": "text-start", "id": "text-1"})
+
+    config = {"configurable": {"thread_id": thread_id}}
+    user_context = agent.Context(user_id=thread_id)
+    last_user_text = next(
+        (m["content"] for m in reversed(user_messages) if m["role"] == "user"),
+        "",
+    )
+    rag_debug.log_query(thread_id, last_user_text)
+
+    def _invoke():
+        # contextvars do NOT propagate into the executor thread, so set the
+        # trace_id there so logs emitted during the agent run correlate.
+        if trace_id:
+            trace_id_var.set(trace_id)
+        return agent_instance.invoke(
+            {"messages": user_messages},
+            config=config,
+            context=user_context,
         )
-        rag_debug.log_query(thread_id, last_user_text)
 
-        def _invoke():
-            # contextvars do NOT propagate into the executor thread, so set the
-            # trace_id there so logs emitted during the agent run correlate.
-            if trace_id:
-                trace_id_var.set(trace_id)
-            return agent_instance.invoke(
-                {"messages": user_messages},
-                config=config,
-                context=user_context,
-            )
+    try:
+        # Run the blocking agent call in the executor, but keep the SSE stream
+        # alive with comment-only keep-alives while it works. Comment lines are
+        # ignored by SSE parsers (including the AI SDK client) but prevent
+        # proxies/browsers from declaring the idle connection dead.
+        invoke_task = asyncio.get_running_loop().run_in_executor(None, _invoke)
+        while True:
+            done, _pending = await asyncio.wait({invoke_task}, timeout=HEARTBEAT_INTERVAL)
+            if done:
+                break
+            yield ": keep-alive\n\n"
 
-        result = await asyncio.get_running_loop().run_in_executor(None, _invoke)
+        result = invoke_task.result()
         answer = extract_answer(result)
         rag_debug.log_generation(
             agent.MODEL_NAME,
@@ -367,15 +400,6 @@ async def answer_stream(
         if trace_id:
             add_stage(trace_id, "agent_invoke_done", status="error", error=str(exc))
 
-    start_payload = {"type": "text-start", "id": "text-1"}
-    if ingest_report and ingest_report.get("failed_files"):
-        start_payload["file_indexing"] = {
-            "warnings": [
-                f"{name}: {err}" for name, err in ingest_report["failed_files"]
-            ],
-            "files_indexed": ingest_report.get("files_indexed", []),
-        }
-    yield sse(start_payload)
     for i in range(0, len(answer), 48):
         yield sse({"type": "text-delta", "id": "text-1", "delta": answer[i : i + 48]})
         await asyncio.sleep(0.015)

@@ -44,7 +44,50 @@ def get_system_prompt(has_user_document: bool = False) -> str:
         Pay strict attention to boundary conditions and ensure expected results do not contradict each other.
         Treat a requirement as ambiguous if it fails to specify: threshold/limits, duration/timing, error messaging, state persistence (session vs. account-level), or recovery/unlock procedure. Flag each missing dimension separately.
         If a requirement is ambiguous or untestable, flag it, state why, and give suggestions to improve.
-        Before finalizing the test plan, review all generated test cases as a set. Ensure that no two test cases with the same or overlapping preconditions produce contradictory expected results. If a contradiction exists, resolve it based on the literal wording of the requirement.'''
+        Before finalizing the test plan, review all generated test cases as a set. Ensure that no two test cases with the same or overlapping preconditions produce contradictory expected results. If a contradiction exists, resolve it based on the literal wording of the requirement.
+        
+        --- AGENT INSTRUCTIONS ---
+        Answer ONLY using information explicitly supported by the provided document.
+        Preserve the document's structure and terminology (e.g., distinguishing between 
+        functional/non-functional requirements, existing/proposed features).
+
+        When analyzing requirements and generating test cases, strictly follow this workflow:
+
+        1. AMBIGUITY CHECK
+        EVERY requirement identified in the document MUST first be evaluated for objective testability.
+        Examples of ambiguity include: missing numerical thresholds, undefined terminology, 
+        unclear expected behavior, missing input/output conditions, or unclear scope.
+
+        2. HANDLING AMBIGUOUS REQUIREMENTS
+        If a requirement is ambiguous or not objectively testable:
+        - Mark it explicitly as: "NOT TESTABLE AS WRITTEN".
+        - Do NOT invent a measurable interpretation or generate a test case for it.
+        - State the specific reason for the ambiguity (e.g., what information is missing).
+        - Provide concrete suggestions on how to rewrite the requirement to make it testable.
+
+        3. TEST CASE GENERATION
+        For EVERY requirement that is sufficiently specified and objectively testable, 
+        you MUST generate AT LEAST ONE test case. NEVER skip a testable requirement.
+        For these test cases:
+        - Maintain strict traceability (reference section number, requirement ID, heading, page number using retrieved metadata).
+        - The expected result must be directly supported by the requirement.
+        - Do not invent acceptance criteria.
+
+        4. INTERNAL VERIFICATION & COVERAGE CHECK
+        Before producing the final answer, internally verify: "Can I point to a specific 
+        piece of the retrieved document that supports every factual claim?" If not, state that 
+        the document does not specify it.
+        
+        At the end of your response, perform a mandatory coverage check:
+        Total requirements identified: X
+        Testable requirements: Y
+        Ambiguous requirements: Z
+        Requirements with test cases: Y
+
+        (Note: The number of testable requirements with test cases MUST exactly equal the 
+        number of testable requirements identified.)
+        '''
+
     )
     if has_user_document:
         nl = chr(10)
@@ -63,7 +106,7 @@ def build_agent(tools=None, has_user_document: bool = False):
         temperature=0.1,
         top_k=20,
         top_p=0.15,
-        num_ctx=8167,
+        num_ctx=16384,
         request_timeout=45.0,
     )
     rag_debug.section("GENERATION", "Agent build", rag_debug.C.GENERATION)
