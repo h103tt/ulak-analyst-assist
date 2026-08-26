@@ -26,6 +26,7 @@ import rag_debug
 import refine
 import vector_embed
 from pipeline_logging import (
+    HopTracingHandler,
     add_stage,
     add_tool_summaries,
     create_run,
@@ -360,9 +361,15 @@ def _compute_answer_sync(
         # trace_id there so logs emitted during the run correlate.
         trace_id_var.set(trace_id)
 
+    # One HopTracingHandler per turn: every nested LLM call (agent reasoning,
+    # query-expansion variants), retriever call, and tool call inside the
+    # invoke below gets its own add_stage() entry + live log line, instead of
+    # only the coarse "agent_invoke_done" checkpoint added after it finishes.
+    hop_handler = HopTracingHandler()
     config = {
         "configurable": {"thread_id": thread_id},
         "recursion_limit": AGENT_RECURSION_LIMIT,
+        "callbacks": [hop_handler],
     }
     user_context = agent.Context(user_id=thread_id)
 
@@ -380,7 +387,9 @@ def _compute_answer_sync(
     try:
         aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
         question = extract_question(user_messages)
-        answer = refine.refine_answer(question, aggregated_context, raw_answer)
+        answer = refine.refine_answer(
+            question, aggregated_context, raw_answer, callbacks=[hop_handler]
+        )
         refined = answer != raw_answer
     except Exception:
         traceback.print_exc()
@@ -563,6 +572,7 @@ async def trace(body: TraceRequestBody):
                 config={
                     "configurable": {"thread_id": body.thread_id},
                     "recursion_limit": AGENT_RECURSION_LIMIT,
+                    "callbacks": [HopTracingHandler()],
                 },
                 context=agent.Context(user_id=body.thread_id),
             )

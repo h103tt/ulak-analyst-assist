@@ -45,10 +45,20 @@ def aggregate_tool_context(messages) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def refine_answer(question: str, aggregated_context: str, draft_answer: str) -> str:
+def refine_answer(
+    question: str,
+    aggregated_context: str,
+    draft_answer: str,
+    callbacks: list | None = None,
+) -> str:
     """Run the refinement pass. Falls back to the draft untouched if nothing
     was retrieved -- there's no context to check citations against, so a
-    second pass would only add latency with no grounding benefit."""
+    second pass would only add latency with no grounding benefit.
+
+    ``callbacks`` (optional) lets the caller attach a tracing handler (see
+    pipeline_logging.HopTracingHandler) to this LLM call the same way it's
+    attached to the main agent invoke -- without it, this second pass is
+    invisible to that handler."""
     if not aggregated_context.strip():
         return draft_answer
 
@@ -63,7 +73,8 @@ def refine_answer(question: str, aggregated_context: str, draft_answer: str) -> 
                     f"Draft answer:\n{draft_answer}"
                 )
             ),
-        ]
+        ],
+        config={"callbacks": callbacks} if callbacks else None,
     )
     content = response.content
     return content if isinstance(content, str) else str(content)

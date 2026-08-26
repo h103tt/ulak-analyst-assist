@@ -128,3 +128,101 @@ def list_runs(limit: int = 50) -> list[dict]:
         {**run, "stages": list(run["stages"]), "tools": list(run["tools"])}
         for run in reversed(recent)
     ]
+
+
+# --- Hop-level tracing --------------------------------------------------
+#
+# add_stage() above is called by hand, once per coarse checkpoint
+# (agent_prepared, agent_invoke_done, stream_complete...). It doesn't see
+# what happens *inside* one agent_invoke: how many reasoning/tool-call
+# hops the ReAct loop took, how long each query-expansion variant's LLM
+# call took, or where in a multi-hop turn things are slow or erroring.
+#
+# HopTracingHandler is a LangChain callback handler that fills that gap:
+# attach one instance (per turn) to agent_instance.invoke(config=...) and
+# to refine.refine_answer(callbacks=...), and every nested LLM call,
+# retriever call, and tool call automatically gets its own add_stage()
+# entry (so it shows up in /debug/runs/{trace_id} alongside the coarse
+# checkpoints) plus a live JSON log line, as it happens -- not just once
+# the whole turn finishes.
+
+import time
+from typing import Any
+
+from langchain_core.callbacks.base import BaseCallbackHandler
+
+_hop_log = logging.getLogger("hop_tracing")
+
+
+def _preview(text: Any, limit: int = 200) -> str:
+    text = text if isinstance(text, str) else str(text)
+    text = text.replace("\n", " ").strip()
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+class HopTracingHandler(BaseCallbackHandler):
+    """Per-turn callback handler. Create one instance per agent turn (do not
+    reuse across turns/threads -- run_id timing state isn't cleared)."""
+
+    def __init__(self) -> None:
+        self._starts: dict[Any, float] = {}
+
+    def _elapsed(self, run_id: Any) -> float | None:
+        start = self._starts.pop(run_id, None)
+        return round(time.perf_counter() - start, 2) if start is not None else None
+
+    def _emit(self, stage: str, status: str = "ok", **meta) -> None:
+        trace_id = trace_id_var.get()
+        if trace_id:
+            add_stage(trace_id, stage, status=status, **meta)
+        level = logging.ERROR if status == "error" else logging.INFO
+        _hop_log.log(level, stage, extra={"stage": stage, "meta": meta})
+
+    # LLM calls: agent reasoning steps, each query-expansion variant, and
+    # the refinement pass (when refine.refine_answer is given this handler).
+    def on_llm_start(self, serialized, prompts, *, run_id, **kwargs):
+        self._starts[run_id] = time.perf_counter()
+        self._emit("llm_call_start", prompt_count=len(prompts))
+
+    def on_chat_model_start(self, serialized, messages, *, run_id, **kwargs):
+        self._starts[run_id] = time.perf_counter()
+        self._emit("llm_call_start")
+
+    def on_llm_end(self, response, *, run_id, **kwargs):
+        self._emit("llm_call_end", elapsed_s=self._elapsed(run_id))
+
+    def on_llm_error(self, error, *, run_id, **kwargs):
+        self._emit(
+            "llm_call_error", status="error", elapsed_s=self._elapsed(run_id), error=str(error)
+        )
+
+    # Retriever calls: one per query-expansion variant, so a single tool
+    # call can log several of these.
+    def on_retriever_start(self, serialized, query, *, run_id, **kwargs):
+        self._starts[run_id] = time.perf_counter()
+        self._emit("retrieval_start", query=_preview(query))
+
+    def on_retriever_end(self, documents, *, run_id, **kwargs):
+        self._emit(
+            "retrieval_end", elapsed_s=self._elapsed(run_id), chunk_count=len(documents)
+        )
+
+    def on_retriever_error(self, error, *, run_id, **kwargs):
+        self._emit(
+            "retrieval_error", status="error", elapsed_s=self._elapsed(run_id), error=str(error)
+        )
+
+    # Tool calls: search_testing_standards / search_user_document /
+    # get_document_structure -- one per retrieval "hop" in a multi-hop turn.
+    def on_tool_start(self, serialized, input_str, *, run_id, **kwargs):
+        name = serialized.get("name", "tool") if isinstance(serialized, dict) else "tool"
+        self._starts[run_id] = time.perf_counter()
+        self._emit("tool_call_start", tool=name, input=_preview(input_str))
+
+    def on_tool_end(self, output, *, run_id, **kwargs):
+        self._emit("tool_call_end", elapsed_s=self._elapsed(run_id))
+
+    def on_tool_error(self, error, *, run_id, **kwargs):
+        self._emit(
+            "tool_call_error", status="error", elapsed_s=self._elapsed(run_id), error=str(error)
+        )
