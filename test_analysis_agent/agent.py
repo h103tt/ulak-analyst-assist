@@ -10,7 +10,7 @@ import time
 import rag_debug
 import vector_embed
 
-MODEL_NAME = "gemma4:12b"
+MODEL_NAME = "qwen3.5:4b"
 MODEL_PROVIDER = "ollama"
 
 HISTORY_TOKEN_BUDGET = 24000

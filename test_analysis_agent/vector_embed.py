@@ -65,7 +65,7 @@ def resolve_upload(file_name: str) -> str | None:
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")  # embedding model (loosely fetches the top 15-20 relevant chunks)
 reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
-compressor = CrossEncoderReranker(model=reranker_model, top_n=25)
+compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
 
 
 ###############--------KNOWLEDGE BASE DOCS----------###########
