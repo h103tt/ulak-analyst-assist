@@ -71,19 +71,18 @@ compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
 ###############--------KNOWLEDGE BASE DOCS----------###########
 DOCS = [
     ("Environmental_and_hardware", "MIL-STD-461.pdf",               "MIL-STD-461"),
-    ("Environmental_and_hardware", "MIL-STD-810H_CHG-1.pdf",        "MIL-STD-810H_CHG-1"),
     ("Environmental_and_hardware", "MIL-STD-1586A.pdf",             "MIL-STD-1586A"),
-    ("Requirements_and_quality",   "830-1998.pdf",                  "830-1998"),
     ("Requirements_and_quality",   "15288-2023-2.pdf",              "15288-2023-2"),
     ("Requirements_and_quality",   "29119-1-2022.pdf",              "29119-1-2022"),
-    ("Requirements_and_quality",   "29148-2018.pdf",                "29148-2018"),
     ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE-Test-Doc-829-2008"),
-    ("Requirements_and_quality",   "ISO-9001-2015.pdf",             "ISO-9001-2015"),
     ("Requirements_and_quality",   "requirements_and_testing.md",   "requirements_and_testing"),
     ("Security_and_safety",        "MIL-STD-882E.pdf",              "MIL-STD-882E"),
-    ("Security_and_safety",        "RTCA-DO-160G.pdf",              "RTCA-DO-160G"),
     ("Security_and_safety",        "SP800-53_REV-3.PDF",            "SP800-53_REV-3"),
 ]
+# NOTE: MIL-STD-810H_CHG-1.pdf, 830-1998.pdf, 29148-2018.pdf, ISO-9001-2015.pdf
+# and RTCA-DO-160G.pdf were removed from knowledge_base/ during the recent KB
+# cleanup commits. Re-add an entry here (with the file restored under
+# knowledge_base/<category>/) if any of them come back into scope.
 
 DOC_METADATA_LOOKUP = {
     filename: {"category": category, "standard": standard_label}

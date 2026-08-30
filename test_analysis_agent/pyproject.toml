@@ -25,6 +25,20 @@ dependencies = [
     "pytesseract>=0.3.13",
     "unstructured>=0.25.2",
     "uvicorn",
-    "langchain-docling>=3.0.0",
+    "langchain-docling[local]>=3.0.0",
     "sentence-transformers>=6.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "deepeval>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires a live Ollama server (and usually an ingested knowledge base)",
+    "e2e: end-to-end RAG regression suite under tests/e2e",
+]
+asyncio_mode = "auto"

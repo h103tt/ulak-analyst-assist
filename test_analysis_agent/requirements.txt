@@ -15,7 +15,7 @@ langchain-text-splitters
 langchain-chroma
 langchain-ollama
 langgraph
-langchain-docling
+langchain-docling[local]
 
 # Document Loaders & Processing
 pdfplumber
