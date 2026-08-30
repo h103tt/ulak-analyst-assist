@@ -17,6 +17,7 @@ from langchain_docling.loader import DoclingLoader
 from langchain_docling.loader import ExportType
 from docling.chunking import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from docling_core.types.doc import DocItemLabel
 from transformers import AutoTokenizer
 from langchain_community.vectorstores.utils import filter_complex_metadata
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
@@ -396,14 +397,178 @@ retriever_tool = create_retriever_tool(
 
 
 #########--------user document loading according to the doc type---------############
+# Docling tables are chunked coarse-grained by HybridChunker. When a table is
+# large we instead expand it into one Document per row via export_to_dataframe(),
+# which preserves Docling's accurate cell parsing (merged cells, multi-row
+# headers, etc.).
+TABLE_ROW_SPLIT_CHAR_THRESHOLD = 4096
+
+
+def _table_item_char_count(table_item, doc: object) -> int:
+    """Approximate character count of a TableItem's content."""
+    try:
+        df = table_item.export_to_dataframe(doc=doc)
+        if df is None:
+            return 0
+        return sum(len(str(v)) for v in df.to_numpy().ravel())
+    except Exception:
+        try:
+            return len(table_item.export_to_markdown(doc=doc))
+        except Exception:
+            return 0
+
+
+def _table_section_heading(doc: object, target_item: object) -> str | None:
+    """Return the closest preceding section heading for a document item."""
+    last_heading: str | None = None
+    for item, _level in doc.iterate_items():
+        if item is target_item:
+            return last_heading
+        if getattr(item, "label", None) == DocItemLabel.SECTION_HEADER:
+            text = getattr(item, "text", None)
+            if text:
+                last_heading = str(text)
+    return last_heading
+
+
+def _table_page_no(table_item: object) -> int | None:
+    """Extract the page number a TableItem appears on."""
+    try:
+        provs = getattr(table_item, "prov", None) or []
+        if provs:
+            return getattr(provs[0], "page_no", None)
+    except Exception:
+        pass
+    return None
+
+
+def _table_to_row_documents(table_item, doc: object, file_path: str) -> list[Document]:
+    """Convert a large Docling TableItem into one Document per row.
+
+    ``export_to_dataframe()`` keeps Docling's accurate cell parsing (merged
+    cells, multi-row headers, etc.), so emitting a Document per row preserves
+    that fidelity while fixing the chunker's coarse table granularity.
+    """
+    try:
+        df = table_item.export_to_dataframe(doc=doc)
+    except Exception:
+        df = None
+
+    if df is None or len(df) == 0:
+        try:
+            text = table_item.export_to_markdown(doc=doc)
+        except Exception:
+            text = ""
+        if not text:
+            return []
+        section = _table_section_heading(doc, table_item)
+        page = _table_page_no(table_item)
+        return [
+            Document(
+                page_content=text,
+                metadata={
+                    "source": file_path,
+                    "dl_meta": {
+                        "headings": [section] if section else [],
+                        "doc_items": [
+                            {
+                                "label": "Table",
+                                "prov": [{"page_no": page}] if page is not None else [],
+                            }
+                        ],
+                    },
+                },
+            )
+        ]
+
+    section = _table_section_heading(doc, table_item)
+    page = _table_page_no(table_item)
+
+    row_docs: list[Document] = []
+    for _, row in df.iterrows():
+        parts: list[str] = []
+        for col_idx, col in enumerate(df.columns):
+            try:
+                val = row.iloc[col_idx]
+            except (IndexError, KeyError):
+                continue
+            if val is None:
+                continue
+            sval = str(val).strip()
+            if not sval or sval.lower() in {"nan", "<na>", "none", "nat"}:
+                continue
+            parts.append(f"{col}: {sval}")
+        if not parts:
+            continue
+        row_text = " | ".join(parts)
+        row_docs.append(
+            Document(
+                page_content=row_text,
+                metadata={
+                    "source": file_path,
+                    "dl_meta": {
+                        "headings": [section] if section else [],
+                        "doc_items": [
+                            {
+                                "label": "Table",
+                                "prov": [{"page_no": page}] if page is not None else [],
+                            }
+                        ],
+                    },
+                },
+            )
+        )
+    return row_docs
+
+
 def _load_binary_with_docling(file_path: str, **loader_kwargs) -> list[Document]:
-    loader = DoclingLoader(
-        file_path=file_path,
-        export_type=ExportType.DOC_CHUNKS,
-        chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512),
-        **loader_kwargs,
-    )
-    return loader.load()
+    """Load a binary file with Docling, keeping table granularity.
+
+    Uses the shared DocumentConverter directly, then splits the output:
+    - Table items whose content exceeds ``TABLE_ROW_SPLIT_CHAR_THRESHOLD``
+      are expanded into one Document per row via ``_table_to_row_documents``
+      (keeping Docling's accurate cell parsing).
+    - The remaining (non-large-table) content is chunked with the
+      HybridChunker exactly as before.
+
+    ``load_document()`` calls this with the same signature as before, so nothing
+    downstream (``_tag_chunks``, ``build_session_retriever_tool``, etc.)
+    changes.
+    """
+    convert_kwargs = loader_kwargs.pop("convert_kwargs", {}) or {}
+    converter = _get_docling_converter()
+    result = converter.convert(source=str(file_path), **convert_kwargs)
+    docling_doc = result.document
+
+    docs: list[Document] = []
+    large_tables: list = []
+
+    # Expand large tables into one Document per row.
+    for table_item in list(docling_doc.tables):
+        if _table_item_char_count(table_item, docling_doc) > TABLE_ROW_SPLIT_CHAR_THRESHOLD:
+            row_docs = _table_to_row_documents(table_item, docling_doc, file_path)
+            if row_docs:
+                large_tables.append(table_item)
+                docs.extend(row_docs)
+
+    # Drop the large tables so the chunker doesn't re-process them.
+    if large_tables:
+        docling_doc.delete_items(node_items=large_tables)
+
+    # Chunk the remaining content exactly like the old DoclingLoader path.
+    chunker = HybridChunker(tokenizer=hf_tokenizer, max_tokens=512)
+    for chunk in chunker.chunk(docling_doc):
+        docs.append(
+            Document(
+                page_content=chunker.contextualize(chunk=chunk),
+                metadata={
+                    "source": file_path,
+                    "dl_meta": chunk.meta.export_json_dict(),
+                },
+            )
+        )
+
+    return docs
 
 def _tag_chunks(docs: list[Document], source_name: str) -> list[Document]:
     stem = re.sub(r"[^A-Za-z0-9]+", "-", os.path.splitext(source_name)[0]).strip("-").lower()
