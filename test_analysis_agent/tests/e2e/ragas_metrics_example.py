@@ -66,7 +66,7 @@ def run_ragas_evaluation(dataset):
         faithfulness,
     )
 
-    judge_llm = ChatOllama(model="gemma4:12b", temperature=0.3)
+    judge_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
     judge_embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
     return evaluate(

@@ -194,6 +194,7 @@ class TestChunkTagWellFormedness:
 # ===================================================================
 # 3. Stricter citation-context co-location (live)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestCitationContextCoLocation:
     CITATION_RE = re.compile(
@@ -261,6 +262,7 @@ class TestCitationContextCoLocation:
 # ===================================================================
 # 4. Cross-standard comparison issues separate, focused search calls (live)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestCrossStandardCitation:
     @pytest.fixture(scope="class")

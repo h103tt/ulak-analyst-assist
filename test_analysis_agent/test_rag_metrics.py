@@ -16,7 +16,7 @@ from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 from deepeval.synthesizer.config import ContextConstructionConfig
 
 # Shared Ollama judge model used by all deepeval metrics & the synthesizer
-judge_model = OllamaModel(model="gemma4:12b", base_url="http://localhost:11434", temperature=0.5)
+judge_model = OllamaModel(model="gemma3:4b", base_url="http://localhost:11434", temperature=0.5)
 
 os.environ["DEEPEVAL_PER_ATTEMPT_TIMEOUT_SECONDS_OVERRIDE"] = "600"
 

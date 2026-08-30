@@ -12,7 +12,7 @@ Usage (from test_analysis_agent/):
 
 Requirements:
     - Ollama running locally with the judge model available
-      (ollama pull gemma4:12b  -- or override with --judge-model)
+      (ollama pull gemma3:4b  -- or override with --judge-model)
     - The knowledge_base/ PDFs this script points at must exist on disk
       (see KB_SOURCE_FILES below; keep this list in sync with
       vector_embed.DOCS / DOC_METADATA_LOOKUP)
@@ -65,7 +65,7 @@ def _resolve_present_files() -> list[tuple[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="tests/e2e/golden_dataset.generated.json")
-    parser.add_argument("--judge-model", default="gemma4:12b")
+    parser.add_argument("--judge-model", default="gemma3:4b")
     parser.add_argument("--max-goldens-per-doc", type=int, default=3)
     args = parser.parse_args()
 
@@ -105,6 +105,7 @@ def main() -> None:
     synthesizer = Synthesizer(model=judge_model)
     context_config = ContextConstructionConfig(
         embedder=DeepEvalEmbedder(vector_embed.embeddings),
+        critic_model=judge_model,  # without this, deepeval defaults to OpenAI and needs OPENAI_API_KEY
         max_contexts_per_document=args.max_goldens_per_doc,
     )
 
