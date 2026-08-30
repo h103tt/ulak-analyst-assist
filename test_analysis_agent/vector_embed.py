@@ -27,6 +27,7 @@ import debug_artifacts
 import rag_debug
 import retrieval_debug
 from rag_debug import C, _c, field, section, status
+import agent
 
 log = logging.getLogger("vector_embed")
 
@@ -111,7 +112,7 @@ def build_expanded_retriever(base_vector_store: Chroma, k: int, search_type: str
     reranked_retriever = build_reranking_retriever(base_vector_store, k, search_type=search_type)
     return MultiQueryRetriever.from_llm(
         retriever=reranked_retriever,
-        llm=get_model(),
+        llm=agent.get_llm(),
         include_original=True,
     )
 

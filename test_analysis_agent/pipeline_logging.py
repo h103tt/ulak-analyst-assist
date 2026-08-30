@@ -17,6 +17,11 @@ import threading
 from collections import deque
 from datetime import datetime, timezone
 
+from collections import defaultdict
+
+_tool_call_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+DEFAULT_MAX_TOOL_CALLS_PER_TURN = 3
 # Per-request correlation id, propagated through contextvars so any logger
 # emitting inside the request carries the same trace_id automatically.
 trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
@@ -226,3 +231,65 @@ class HopTracingHandler(BaseCallbackHandler):
         self._emit(
             "tool_call_error", status="error", elapsed_s=self._elapsed(run_id), error=str(error)
         )
+
+
+# --- Per-turn tool call limiting ----------------------------------------
+#
+# The ReAct loop has no built-in sense of "I've searched enough" — a small
+# model can keep reformulating the same query indefinitely (see hop_tracing
+# logs: 5+ near-identical search_user_document calls in one turn). This caps
+# how many times a given tool can actually execute within a single turn;
+# once the cap is hit, the tool returns a synthetic result instead of
+# running again, which forces the model to answer with what it already has
+# instead of looping.
+
+
+def limit_tool_calls(tool, max_calls: int = DEFAULT_MAX_TOOL_CALLS_PER_TURN):
+    """Wrap a LangChain tool so it refuses to execute more than `max_calls`
+    times per turn (keyed by trace_id_var, which bridge.py sets once per
+    request). Past the cap, returns a canned message instead of invoking
+    the tool, so the model is forced to stop retrieving and answer."""
+    limit_message = (
+        "[Search limit reached: this tool has already been called {n} times "
+        "this turn. Do not call it again. Answer using only the results "
+        "already retrieved above, and if something isn't covered by them, "
+        "state explicitly that the retrieved sections don't cover it.]"
+    )
+
+    def _check_and_count() -> str | None:
+        trace_id = trace_id_var.get() or "no-trace"
+        counts = _tool_call_counts[trace_id]
+        counts[tool.name] += 1
+        if counts[tool.name] > max_calls:
+            return limit_message.format(n=max_calls)
+        return None
+
+    if getattr(tool, "func", None) is not None:
+        original_func = tool.func
+
+        def limited_func(*args, **kwargs):
+            blocked = _check_and_count()
+            if blocked is not None:
+                return blocked
+            return original_func(*args, **kwargs)
+
+        tool.func = limited_func
+
+    if getattr(tool, "coroutine", None) is not None:
+        original_coroutine = tool.coroutine
+
+        async def limited_coroutine(*args, **kwargs):
+            blocked = _check_and_count()
+            if blocked is not None:
+                return blocked
+            return await original_coroutine(*args, **kwargs)
+
+        tool.coroutine = limited_coroutine
+
+    return tool
+
+
+def clear_tool_call_counts(trace_id: str) -> None:
+    """Free the per-turn counters once a turn is done, so the dict doesn't
+    grow unbounded over a long-running process."""
+    _tool_call_counts.pop(trace_id, None)

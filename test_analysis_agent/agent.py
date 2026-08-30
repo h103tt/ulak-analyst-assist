@@ -9,11 +9,12 @@ import time
 
 import rag_debug
 import vector_embed
+import pipeline_logging
 
 MODEL_NAME = "qwen3.5:4b"
 MODEL_PROVIDER = "ollama"
 
-HISTORY_TOKEN_BUDGET = 24000
+HISTORY_TOKEN_BUDGET = 8000
 
 def get_llm():
     model = ChatOllama(
@@ -117,9 +118,16 @@ def get_system_prompt(has_user_document: bool = False) -> str:
 
 def build_agent(tools=None, has_user_document: bool = False):
     """Build the QA agent around the shared system prompt."""
+    active_tools = tools if tools is not None else vector_embed.tools
+    limited_tools = [
+        pipeline_logging.limit_tool_calls(t) if t.name in (
+            "search_testing_standards", "search_user_document"
+        ) else t
+        for t in active_tools
+    ]
     return create_agent(
         model=get_llm(),
-        tools=tools if tools is not None else vector_embed.tools,
+        tools=limited_tools,
         system_prompt=get_system_prompt(has_user_document),
         checkpointer=InMemorySaver(),
         middleware=[trim_history_middleware],

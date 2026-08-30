@@ -34,6 +34,7 @@ from pipeline_logging import (
     list_runs,
     setup_logging,
     trace_id_var,
+    clear_tool_call_counts
 )
 
 
@@ -167,7 +168,7 @@ CONTEXT_CHAR_BUDGET = 60000
 # LangGraph's default recursion_limit (25 graph steps) can be too tight for
 # multi-hop questions that need several sequential tool calls (e.g. comparing
 # two standards) -- raised so those don't get cut off mid-reasoning.
-AGENT_RECURSION_LIMIT = 50
+AGENT_RECURSION_LIMIT = 10
 
 
 def truncate_context(text: str, max_chars: int = CONTEXT_CHAR_BUDGET) -> str:
@@ -352,19 +353,9 @@ def _compute_answer_sync(
     trace_id: str = "",
     has_user_document: bool = False,
 ) -> str:
-    """Blocking work for one turn: agent invoke (retrieval/rerank/query
-    expansion) plus the answer-refinement pass. Runs in a worker thread,
-    polled with heartbeats by answer_stream below. Raises on invoke failure;
-    refinement failure only degrades back to the draft answer."""
     if trace_id:
-        # contextvars do NOT propagate into the executor thread, so set the
-        # trace_id there so logs emitted during the run correlate.
         trace_id_var.set(trace_id)
 
-    # One HopTracingHandler per turn: every nested LLM call (agent reasoning,
-    # query-expansion variants), retriever call, and tool call inside the
-    # invoke below gets its own add_stage() entry + live log line, instead of
-    # only the coarse "agent_invoke_done" checkpoint added after it finishes.
     hop_handler = HopTracingHandler()
     config = {
         "configurable": {"thread_id": thread_id},
@@ -373,11 +364,16 @@ def _compute_answer_sync(
     }
     user_context = agent.Context(user_id=thread_id)
 
-    result = agent_instance.invoke(
-        {"messages": user_messages},
-        config=config,
-        context=user_context,
-    )
+    try:
+        result = agent_instance.invoke(
+            {"messages": user_messages},
+            config=config,
+            context=user_context,
+        )
+    finally:
+        if trace_id:
+            clear_tool_call_counts(trace_id)   # new import from pipeline_logging
+
     raw_answer = extract_answer(result)
 
     # Answer refinement pass: check citations/contradictions against the
@@ -702,3 +698,5 @@ if __name__ == "__main__":
         run_process(AGENT_DIR, target=run_server, watch_filter=watch_filter)
     else:
         run_server()
+
+
