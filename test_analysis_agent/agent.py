@@ -22,6 +22,7 @@ def get_llm():
         temperature=0.1,
         top_k=20,
         top_p=0.15,
+        repeat_penalty=1.3,
         num_ctx=16384,
         request_timeout=45.0,
     )

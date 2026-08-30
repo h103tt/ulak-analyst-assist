@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "description": "Curated golden Q&A set for E2E RAG regression testing. Each item targets a document that is physically present in test_analysis_agent/knowledge_base as of this audit (2026-08-30). expected_answer is an intentionally high-level, publicly-known summary of the standard's scope -- it is meant as a soft reference for deepeval's GEval judge (semantic comparison against the model's actual output + retrieved context), NOT a verbatim string match. Regenerate/expand this file with generate_golden_dataset.py once a subject-matter expert can validate clause-level expected answers against the actual PDF text.",
+    "excluded_stale_docs": [
+      "MIL-STD-810H_CHG-1.pdf",
+      "830-1998.pdf",
+      "29148-2018.pdf",
+      "ISO-9001-2015.pdf",
+      "RTCA-DO-160G.pdf"
+    ],
+    "excluded_reason": "Listed in vector_embed.DOCS / DOC_METADATA_LOOKUP but not present under knowledge_base/ at audit time -- see rag_e2e.feature scenario 'DOCS registry stays in sync with files on disk'."
+  },
+  "golden_set": [
+    {
+      "id": "GQ-001",
+      "question": "What is the general scope and purpose of MIL-STD-461?",
+      "expected_category": "Environmental_and_hardware",
+      "expected_standard": "MIL-STD-461",
+      "expected_answer": "MIL-STD-461 establishes electromagnetic interference (EMI) requirements and test methods for the control of electromagnetic emissions and susceptibility characteristics of electronic, electrical, and electromechanical equipment.",
+      "must_mention": ["electromagnetic", "interference", "emission", "susceptibility"]
+    },
+    {
+      "id": "GQ-002",
+      "question": "What kind of equipment does MIL-STD-1586A apply to and what does it cover?",
+      "expected_category": "Environmental_and_hardware",
+      "expected_standard": "MIL-STD-1586A",
+      "expected_answer": "MIL-STD-1586A covers airborne electronic equipment configuration/qualification guidance, addressing environmental and physical requirements applicable to airborne hardware.",
+      "must_mention": ["airborne", "equipment"]
+    },
+    {
+      "id": "GQ-003",
+      "question": "What system life cycle processes are defined in ISO/IEC/IEEE 15288?",
+      "expected_category": "Requirements_and_quality",
+      "expected_standard": "15288-2023-2",
+      "expected_answer": "ISO/IEC/IEEE 15288 defines a common framework of system life cycle processes covering agreement, organizational project-enabling, technical management, and technical processes used to describe the life cycle of human-made systems.",
+      "must_mention": ["life cycle", "process"]
+    },
+    {
+      "id": "GQ-004",
+      "question": "What is the purpose of ISO/IEC/IEEE 29119-1 and what does it define?",
+      "expected_category": "Requirements_and_quality",
+      "expected_standard": "29119-1-2022",
+      "expected_answer": "ISO/IEC/IEEE 29119-1 defines vocabulary, concepts, and a general framework for software testing that underpins the rest of the 29119 series (test processes, documentation, and techniques).",
+      "must_mention": ["software testing", "concepts"]
+    },
+    {
+      "id": "GQ-005",
+      "question": "What test documentation artifacts does the IEEE 829 test documentation standard require?",
+      "expected_category": "Requirements_and_quality",
+      "expected_standard": "IEEE-Test-Doc-829-2008",
+      "expected_answer": "IEEE 829-2008 specifies the format and content of a set of software test documents, including test plans, test design specifications, test case specifications, test procedures, and test summary reports.",
+      "must_mention": ["test plan", "test case", "test summary"]
+    },
+    {
+      "id": "GQ-006",
+      "question": "What does MIL-STD-882E require with respect to hazard risk assessment?",
+      "expected_category": "Security_and_safety",
+      "expected_standard": "MIL-STD-882E",
+      "expected_answer": "MIL-STD-882E establishes the DoD system safety process, requiring identification of hazards, assessment of their risk (severity x probability), and mitigation to an acceptable level before fielding a system.",
+      "must_mention": ["hazard", "risk", "safety"]
+    },
+    {
+      "id": "GQ-007",
+      "question": "What security control families does NIST SP 800-53 define, and how does access control fit in?",
+      "expected_category": "Security_and_safety",
+      "expected_standard": "SP800-53_REV-3",
+      "expected_answer": "NIST SP 800-53 defines a catalog of security and privacy controls organized into families (e.g. Access Control, Audit and Accountability, System and Communications Protection) that federal information systems select and implement based on risk.",
+      "must_mention": ["security control", "access control"]
+    },
+    {
+      "id": "GQ-008",
+      "question": "According to the internal requirements_and_testing notes, what makes a requirement testable?",
+      "expected_category": "Requirements_and_quality",
+      "expected_standard": "requirements_and_testing",
+      "expected_answer": "A requirement is testable when it specifies objective, measurable criteria -- e.g. explicit thresholds/limits, timing/duration, error messaging, and expected system state -- so that a test case can produce a pass/fail verdict without interpretation.",
+      "must_mention": ["testable", "measurable"]
+    }
+  ],
+  "out_of_domain_set": [
+    {
+      "id": "OOD-001",
+      "question": "What is the best recipe for lasagna?",
+      "expectation": "The agent should either decline (off-topic for a systems/testing standards assistant) or, if it calls search_testing_standards, explicitly state that the retrieved sections don't cover this rather than answering from general knowledge."
+    },
+    {
+      "id": "OOD-002",
+      "question": "What does DO-178C say about software levels?",
+      "expectation": "DO-178C is not in the knowledge base. The agent must not answer from parametric memory -- it should state the retrieved sections don't cover this standard."
+    }
+  ]
+}
