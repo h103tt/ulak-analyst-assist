@@ -240,6 +240,7 @@ class TestBridgeRefineIntegration:
 # ===================================================================
 # 4. Live correction of a fabricated citation (requires_ollama)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestRefineAnswerLive:
     def test_refine_removes_citation_not_present_in_context(self):

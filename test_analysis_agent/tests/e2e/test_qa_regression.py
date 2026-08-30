@@ -39,7 +39,7 @@ from tests.e2e._helpers import requires_ollama, skip_if_kb_empty, is_model_pulle
 
 pytestmark = pytest.mark.e2e
 
-JUDGE_MODEL_TAG = "gemma4:12b"
+JUDGE_MODEL_TAG = "gemma3:4b"
 GEVAL_PASS_THRESHOLD = 0.6
 CONTEXTUAL_METRIC_THRESHOLD = 0.5
 
@@ -52,6 +52,7 @@ MAX_LIVE_GOLDENS = 3
 # ===================================================================
 # 1. Context Retrieval: Top-K correctness (live)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestContextRetrievalLive:
     def test_top_k_returns_expected_standard(self, golden_dataset, kb_populated):
@@ -83,6 +84,7 @@ class TestContextRetrievalLive:
             )
 
 
+@pytest.mark.integration
 @requires_ollama
 class TestRetrievalQualityMetrics:
     """deepeval ContextualRecall/Precision against the real retriever.
@@ -135,6 +137,7 @@ class TestRetrievalQualityMetrics:
 # ===================================================================
 # 2. Generation & Faithfulness (live, via the real /trace endpoint)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestGenerationFaithfulnessLive:
     """Runs the golden set through the real FastAPI app (real agent, real

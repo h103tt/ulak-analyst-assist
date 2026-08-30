@@ -176,6 +176,7 @@ class TestThreadAgentConcurrency:
 # ===================================================================
 # 3. Query reformulation across turns (live)
 # ===================================================================
+@pytest.mark.integration
 @requires_ollama
 class TestQueryReformulationLive:
     @pytest.fixture(scope="class")
