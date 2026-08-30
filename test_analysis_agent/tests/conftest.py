@@ -29,6 +29,8 @@ _MOCK_MODULES = [
     "docling_core.transforms.chunker",
     "docling_core.transforms.chunker.tokenizer",
     "docling_core.transforms.chunker.tokenizer.huggingface",
+    "docling_core.types",
+    "docling_core.types.doc",
     "transformers",
     "sentence_transformers",
     "langchain_classic",
