@@ -260,7 +260,11 @@ def process_single_file(path: Path):
         return docs
     except Exception as e:
         status("err", "INGESTION", f"{path.name} failed: {e}")
-        log.error("docling load failed", extra={"stage": "kb_parse", "meta": {"file": path.name, "error": str(e)}})
+        log.error(
+            "docling load failed",
+            exc_info=True,
+            extra={"stage": "kb_parse", "meta": {"file": path.name, "error": str(e)}},
+        )
         return []
 
 
