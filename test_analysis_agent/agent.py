@@ -22,7 +22,7 @@ def get_llm():
         top_k=20,
         top_p=0.15,
         repeat_penalty=1.3,
-        num_ctx=16384,
+        num_ctx=8192,
         request_timeout=45.0,
     )
     return model

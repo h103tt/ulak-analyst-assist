@@ -10,14 +10,26 @@ Run a single file:
 """
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch, PropertyMock
 
 # ---------------------------------------------------------------------------
-# Mock third-party modules that are not installed in the test environment.
+# Mock third-party modules that are NOT installed in the test environment.
 # This MUST happen before any import of vector_embed / agent / bridge.
+#
+# Each module is mocked only if a real import of it actually fails -- when
+# the heavy ML deps (docling, transformers, ...) ARE installed, as they are
+# on any machine that has run vector_embed.py to ingest the knowledge base,
+# tests get the REAL modules. This matters for tests/e2e's
+# @pytest.mark.integration tests: they exercise real ingestion, and silently
+# mocking HuggingFaceTokenizer/AutoTokenizer out from under them (as this
+# used to do unconditionally) made HybridChunker operate on a fake tokenizer
+# and produced spurious "division by zero" failures that had nothing to do
+# with the actual code under test -- the plain unit tests never noticed
+# because they mock these modules themselves per-test where needed.
 # ---------------------------------------------------------------------------
 _MOCK_MODULES = [
     "langchain_docling",
@@ -46,15 +58,27 @@ _MOCK_MODULES = [
     "langchain_community.vectorstores.utils",
 ]
 
+_actually_mocked: set[str] = set()
 for _mod_name in _MOCK_MODULES:
-    if _mod_name not in sys.modules:
+    if _mod_name in sys.modules:
+        continue
+    try:
+        importlib.import_module(_mod_name)
+    except Exception:  # noqa: BLE001 - any import failure means "not available here"
         sys.modules[_mod_name] = MagicMock()
+        _actually_mocked.add(_mod_name)
 
-# Provide sensible defaults for things that vector_embed accesses at import time
-sys.modules["langchain_classic"].retrievers = MagicMock()
-sys.modules["langchain_classic"].storage = MagicMock()
-sys.modules["langchain_community.vectorstores"].utils = MagicMock()
-sys.modules["langchain_community.vectorstores.utils"].filter_complex_metadata = MagicMock(side_effect=lambda docs: docs)
+# Sensible defaults for attribute access vector_embed does at import time --
+# only applied (and only safe) when the parent package above was itself
+# mocked; patching a REAL package's real submodule reference here would
+# silently break it for every test in the session.
+if "langchain_classic" in _actually_mocked:
+    sys.modules["langchain_classic"].retrievers = MagicMock()
+    sys.modules["langchain_classic"].storage = MagicMock()
+if "langchain_community.vectorstores" in _actually_mocked:
+    sys.modules["langchain_community.vectorstores"].utils = MagicMock()
+if "langchain_community.vectorstores.utils" in _actually_mocked:
+    sys.modules["langchain_community.vectorstores.utils"].filter_complex_metadata = MagicMock(side_effect=lambda docs: docs)
 
 import pytest
 from langchain_core.documents import Document
