@@ -67,7 +67,7 @@ def resolve_upload(file_name: str) -> str | None:
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")  # embedding model (loosely fetches the top 15-20 relevant chunks)
 reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
-compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
+compressor = CrossEncoderReranker(model=reranker_model, top_n=5)
 
 
 ###############--------KNOWLEDGE BASE DOCS----------###########
@@ -193,27 +193,6 @@ def _chunk_stats(source_name: str, docs: list) -> dict:
                 print(f"      tail: {tail!r}")
     return {"total_chunks": len(docs), "duration_s": duration_s}
 
-def _extract_section(meta: dict) -> str | None:
-    headings = meta.get("dl_meta", {}).get("headings")
-    if headings:
-        return headings[-1] if isinstance(headings, list) else str(headings)
-    return None
-
-def _extract_page(meta: dict) -> str | None:
-    doc_items = meta.get("dl_meta", {}).get("doc_items", [])
-    pages = sorted({
-        p.get("page_no")
-        for item in doc_items
-        for p in item.get("prov", [])
-        if p.get("page_no") is not None
-    })
-    if not pages:
-        return None
-    if len(pages) == 1:
-        return str(pages[0])
-    if pages[-1] - pages[0] <= 2:
-        return f"{pages[0]}-{pages[-1]}"
-    return None  # too wide to be a useful page citation, rely on section instead
 
 def process_single_file(path: Path):
     started = time.perf_counter()
@@ -228,30 +207,13 @@ def process_single_file(path: Path):
         docs = loader.load()
 
         file_info = DOC_METADATA_LOOKUP.get(path.name, {})
-        stem = re.sub(r"[^A-Za-z0-9]+", "-", path.stem).strip("-")
 
-        for i, doc in enumerate(docs):
+        for doc in docs:
             doc.metadata["source_file"] = path.name
             if "category" in file_info:
                 doc.metadata["category"] = file_info["category"]
             if "standard" in file_info:
                 doc.metadata["standard"] = file_info["standard"]
-
-            section = _extract_section(doc.metadata)
-            page = _extract_page(doc.metadata)
-            tag = f"{stem}-{i+1:03d}"
-            doc.id = tag
-            doc.metadata["citation_tag"] = tag
-            doc.metadata["section"] = section
-            doc.metadata["page"] = page
-            doc.page_content = (
-                f'<chunk id="{tag}" source="{path.name}" '
-                f'standard="{doc.metadata.get("standard", "")}" '
-                f'category="{doc.metadata.get("category", "")}" '
-                f'section="{section or ""}" '
-                f'page="{page or ""}">'
-                f"{doc.page_content}</chunk>"
-            )
 
         _chunk_stats(path.name, docs)
         status(
@@ -366,7 +328,7 @@ if __name__ == "__main__":
 
 
 ########--------retrieval of the related chunks----------###########
-retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 20})
+retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 15})
 
 # Logged retriever: same base MMR retriever + reranker, but every query logs
 # candidates, distances, pass/filter verdicts and the final context.
@@ -378,24 +340,19 @@ retriever_tool = create_retriever_tool(
     name="search_testing_standards",
     description=(
         "Search internal standards documents for systems engineering processes, testing, "
-        "safety, cybersecurity, environmental/hardware qualification, and requirements "
-        "engineering guidance. Call this tool for ANY question about the content, "
-        "structure, process groups, definitions, or requirements of a standard — not "
-        "just when generating test cases.\n\n"
-        "Each result is wrapped in a <chunk id=\"...\" source=\"...\" standard=\"...\" "
-        "category=\"...\" section=\"...\" page=\"...\"> tag. When citing information, "
-        "cite it in human-readable form as \"(standard, Section X)\" or "
-        "\"(standard, p. N)\" — e.g. (MIL-STD-461, Section 4.1.3) — using only the "
-        "standard/section/page values that appeared in a chunk you actually "
-        "retrieved. Never invent, guess, or reuse a section, clause, or page that "
-        "was not present in the retrieved text. Do not cite the internal chunk id.\n\n"
-        "Categories available:\n"
-        "- Environmental_and_hardware (MIL-STD environmental and hardware qualification standards)\n"
-        "- Requirements_and_quality (systems lifecycle, requirements engineering, and quality standards)\n"
-        "- Security_and_safety (military/NIST safety and cybersecurity standards)\n\n"
-        "Always call this tool before answering any question about standard content, "
-        "and before generating test cases or validating a requirement."
-        ),
+        "safety, cybersecurity, and requirements engineering guidance. Call this tool for ANY question "
+        "about the content, structure, process groups, definitions, or requirements "
+        "of a standard — not just when generating test cases. "
+        "Each result includes 'standard' and 'category' metadata — always cite the "
+        "'standard' field, never invent a clause number not present in the retrieved text. "
+        "Categories available: "
+        "1. 01_se_process_and_requirements (systems lifecycle and engineering standards), "
+        "2. 02_verification_and_testing (test design and documentation standards), "
+        "3. 03_safety_security_config (military and NIST safety/cybersecurity standards), "
+        "4. 04_requirements (general requirements engineering concepts). "
+        "Always call this tool before answering any question about standard content, and "
+        "before generating test cases or validating a requirement."
+    ),
 )
 
 
@@ -573,49 +530,34 @@ def _load_binary_with_docling(file_path: str, **loader_kwargs) -> list[Document]
 
     return docs
 
-def _tag_chunks(docs: list[Document], source_name: str) -> list[Document]:
-    stem = re.sub(r"[^A-Za-z0-9]+", "-", os.path.splitext(source_name)[0]).strip("-").lower()
-    for i, doc in enumerate(docs):
-        section = _extract_section(doc.metadata)
-        page = _extract_page(doc.metadata)
-        tag = f"{stem}-{i+1:03d}"
-        doc.id = tag
-
-        doc.metadata["section"] = section
-        doc.metadata["page"] = page
-        doc.metadata["citation_tag"] = tag
-        doc.page_content = (
-            f'<chunk id="{tag}" source="{source_name}" '
-            f'section="{section or ""}" '
-            f'page="{page or ""}">'
-            f"{doc.page_content}</chunk>"
-        )
-    return docs
-
 
 def load_document(file_path: str) -> list[Document]:
+    """Loads and chunks user documents with Docling.
+
+    Text-like files (.txt/.md) go through TextLoader, CSV through CSVLoader.
+    Everything else (PDF/DOCX/XLSX/...) goes through Docling. Binary formats
+    that produce no extractable text are retried once with OCR enabled, so
+    scanned/image-only PDFs such as an SRS scan are handled if an OCR engine
+    (EasyOCR by default) is installed.
+    """
     ext = os.path.splitext(file_path)[1].lower()
-    source_name = os.path.basename(file_path)
 
     if ext == ".csv":
         log.info("loading csv", extra={"stage": "user_parse", "meta": {"file": file_path}})
-        docs = CSVLoader(file_path, autodetect_encoding=True).load()
-    elif ext in (".txt", ".md"):
+        return CSVLoader(file_path, autodetect_encoding=True).load()
+    if ext in (".txt", ".md"):
         log.info("loading text", extra={"stage": "user_parse", "meta": {"file": file_path}})
-        docs = TextLoader(file_path, autodetect_encoding=True).load()
-    else:
-        # Binary formats: try plain Docling first (fast path for text-based PDFs).
-        docs = _load_binary_with_docling(file_path)
-        total_chars = sum(len(d.page_content or "") for d in docs)
-        if total_chars < OCR_MIN_CHAR_PER_PAGE:
-            log.info(
-                "low text extraction, retrying with OCR",
-                extra={"stage": "user_parse", "meta": {"file": file_path, "chars": total_chars}},
-            )
-            docs = _load_binary_with_docling(file_path, convert_kwargs={"ocr": True})
+        return TextLoader(file_path, autodetect_encoding=True).load()
 
-    docs = _tag_chunks(docs, source_name)
-
+    # Binary formats: try plain Docling first (fast path for text-based PDFs).
+    docs = _load_binary_with_docling(file_path)
+    total_chars = sum(len(d.page_content or "") for d in docs)
+    if total_chars < OCR_MIN_CHAR_PER_PAGE:
+        log.info(
+            "low text extraction, retrying with OCR",
+            extra={"stage": "user_parse", "meta": {"file": file_path, "chars": total_chars}},
+        )
+        docs = _load_binary_with_docling(file_path, convert_kwargs={"ocr": True})
     log.info(
         "document parsed",
         extra={"stage": "user_parse", "meta": {"file": file_path, "chunks": len(docs)}},
@@ -639,8 +581,7 @@ def build_session_retriever_tool(
     collection_suffix: str | None = None,
     k: int = 5,
 ) -> tuple[object, dict]:
-    """
-    Index user-uploaded files into a per-session Chroma collection and
+    """Index user-uploaded files into a per-session Chroma collection and
     return ``(retriever_tool, ingest_report)``.
 
     Isolation: every session (thread) gets its own collection named after the
@@ -692,7 +633,7 @@ def build_session_retriever_tool(
     )
     _add_with_storage_debug(session_store, collection_name, documents)
 
-    session_retriever = session_store.as_retriever(search_type="similarity", search_kwargs={"k": 50})
+    session_retriever = session_store.as_retriever(search_type="mmr", search_kwargs={"k": k * 3})
     session_compression_retriever = retrieval_debug.logged_compression_retriever(
         session_retriever, compressor, tag="search_user_document"
     )
@@ -700,20 +641,9 @@ def build_session_retriever_tool(
         session_compression_retriever,  # Use the reranker here
         name="search_user_document",
         description=(
-            "Search the document(s) uploaded by the user to find specific project "
-            "details, requirements, architecture, or other content described in "
-            "their files. Call this tool before answering any question about the "
-            "uploaded document's content, and before generating test cases or "
-            "validating a requirement against it.\n\n"
-            "Each result is wrapped in a <chunk id=\"...\" source=\"...\" "
-            "section=\"...\" page=\"...\"> tag. When citing information, cite it in "
-            "human-readable form as \"(filename, Section X)\" or \"(filename, p. N)\" "
-            "using only the source/section/page values that appeared in a chunk you "
-            "actually retrieved — never invent, guess, or reuse a section or page "
-            "that was not present in the retrieved text. Do not cite the internal "
-            "chunk id. If section or page is missing, cite by filename alone. If a "
-            "claim isn't backed by a chunk you retrieved, say the document does not "
-            "specify it rather than answering from assumption or general knowledge."
+            "Search the document(s) uploaded by the user. Use this tool to find "
+            "specific project details, requirements, or architecture described "
+            "in the user's uploaded files."
         ),
     )
 

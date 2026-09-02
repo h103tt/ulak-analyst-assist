@@ -156,33 +156,6 @@ def sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-# How often to emit an SSE keep-alive while the agent is still computing.
-# Long RAG runs (retrieval + rerank + query expansion + refinement) can take
-# minutes; without traffic on the wire, dev proxies and browsers treat the
-# idle connection as dead and the client never processes the answer that
-# eventually arrives.
-HEARTBEAT_INTERVAL = 15.0
-
-CONTEXT_CHAR_BUDGET = 60000
-
-# LangGraph's default recursion_limit (25 graph steps) can be too tight for
-# multi-hop questions that need several sequential tool calls (e.g. comparing
-# two standards) -- raised so those don't get cut off mid-reasoning.
-AGENT_RECURSION_LIMIT = 10
-
-
-def truncate_context(text: str, max_chars: int = CONTEXT_CHAR_BUDGET) -> str:
-    """Cap attached-file context at max_chars, cutting on a whitespace boundary
-    instead of mid-word/mid-clause so the tail isn't a broken fragment that
-    contradicts what the KB retriever returns."""
-    if len(text) <= max_chars:
-        return text
-    cut = text.rfind(" ", 0, max_chars)
-    if cut <= 0:
-        cut = max_chars
-    return text[:cut] + "\n...[context truncated]"
-
-
 def files_signature(files: list[UploadedFile]) -> str:
     """Hash of stable attachment ids+names -- rebuilt when the file set
     changes. Signed URLs are intentionally excluded: they change on every
@@ -351,50 +324,32 @@ def _compute_answer_sync(
     user_messages: list,
     started: float,
     trace_id: str = "",
-    has_user_document: bool = False,
-) -> str:
-    if trace_id:
-        trace_id_var.set(trace_id)
-
-    hop_handler = HopTracingHandler()
-    config = {
-        "configurable": {"thread_id": thread_id},
-        "recursion_limit": AGENT_RECURSION_LIMIT,
-        "callbacks": [hop_handler],
-    }
-    user_context = agent.Context(user_id=thread_id)
-
+    ingest_report: dict | None = None,
+):
+    answer = ""
+    start = time.perf_counter()
     try:
-        result = agent_instance.invoke(
-            {"messages": user_messages},
-            config=config,
-            context=user_context,
+        config = {"configurable": {"thread_id": thread_id}}
+        user_context = agent.Context(user_id=thread_id)
+        last_user_text = next(
+            (m["content"] for m in reversed(user_messages) if m["role"] == "user"),
+            "",
         )
-    finally:
-        if trace_id:
-            clear_tool_call_counts(trace_id)   # new import from pipeline_logging
+        rag_debug.log_query(thread_id, last_user_text)
 
-    raw_answer = extract_answer(result)
+        def _invoke():
+            # contextvars do NOT propagate into the executor thread, so set the
+            # trace_id there so logs emitted during the agent run correlate.
+            if trace_id:
+                trace_id_var.set(trace_id)
+            return agent_instance.invoke(
+                {"messages": user_messages},
+                config=config,
+                context=user_context,
+            )
 
-    # Answer refinement pass: check citations/contradictions against the
-    # aggregated retrieved context before the draft reaches the user. A
-    # quality-only step -- if it fails, keep streaming the draft rather than
-    # losing the turn.
-    try:
-        aggregated_context = refine.aggregate_tool_context(result.get("messages", []))
-        question = extract_question(user_messages)
-        answer = refine.refine_answer(
-            question, aggregated_context, raw_answer, callbacks=[hop_handler]
-        )
-        refined = answer != raw_answer
-    except Exception:
-        traceback.print_exc()
-        answer, refined = raw_answer, False
-
-    # Observability must never break the answer itself: log failures here
-    # don't propagate to answer_stream.
-    try:
-        last_user_text = extract_question(user_messages)
+        result = await asyncio.get_running_loop().run_in_executor(None, _invoke)
+        answer = extract_answer(result)
         rag_debug.log_generation(
             agent.MODEL_NAME,
             time.perf_counter() - started,
@@ -488,6 +443,15 @@ async def answer_stream(
         if trace_id:
             add_stage(trace_id, "agent_invoke_done", status="error", error=str(exc))
 
+    start_payload = {"type": "text-start", "id": "text-1"}
+    if ingest_report and ingest_report.get("failed_files"):
+        start_payload["file_indexing"] = {
+            "warnings": [
+                f"{name}: {err}" for name, err in ingest_report["failed_files"]
+            ],
+            "files_indexed": ingest_report.get("files_indexed", []),
+        }
+    yield sse(start_payload)
     for i in range(0, len(answer), 48):
         yield sse({"type": "text-delta", "id": "text-1", "delta": answer[i : i + 48]})
         await asyncio.sleep(0.015)
