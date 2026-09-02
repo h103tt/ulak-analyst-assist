@@ -55,7 +55,7 @@ def client():
     The patch on agent.build_agent stays ACTIVE for the entire fixture
     lifetime: bridge.get_thread_agent calls agent.build_agent() for every
     per-thread agent, and without the patch it would construct a real
-    ChatOllama agent and try to reach Ollama (hanging the test).
+    real ChatGoogleGenerativeAI agent and try to reach the Gemini API (hanging the test).
     """
     import bridge
     mock_base = _make_mock_agent()

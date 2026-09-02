@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.document_loaders import TextLoader, CSVLoader
 from langchain_core.documents import Document
 from langchain_core.tools import create_retriever_tool
@@ -65,7 +65,7 @@ def resolve_upload(file_name: str) -> str | None:
 
 ######--------models---------#############
 
-embeddings = OllamaEmbeddings(model="nomic-embed-text")  # embedding model (loosely fetches the top 15-20 relevant chunks)
+embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")  # embedding model (loosely fetches the top 15-20 relevant chunks)
 reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
 compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
 

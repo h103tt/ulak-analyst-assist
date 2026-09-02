@@ -4,6 +4,7 @@ uvicorn
 httpx
 pydantic
 deepeval
+python-dotenv
 
 
 # LangChain Ecosystem
@@ -13,7 +14,7 @@ langchain-community
 langchain-classic
 langchain-text-splitters
 langchain-chroma
-langchain-ollama
+langchain-google-genai
 langgraph
 langchain-docling[local]
 

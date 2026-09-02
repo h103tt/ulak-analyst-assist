@@ -124,7 +124,7 @@ class TestSystemPrompt:
 class TestAgentBuild:
     """Verify agent.build_agent returns a usable agent with correct config."""
 
-    @patch("agent.ChatOllama")
+    @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")
     @patch("agent.InMemorySaver")
     def test_build_agent_calls_create_agent(self, mock_saver, mock_create, mock_chat):
@@ -133,7 +133,7 @@ class TestAgentBuild:
         agent_mod.build_agent()
         mock_create.assert_called_once()
 
-    @patch("agent.ChatOllama")
+    @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")
     @patch("agent.InMemorySaver")
     def test_build_agent_default_tools(self, mock_saver, mock_create, mock_chat):
@@ -143,7 +143,7 @@ class TestAgentBuild:
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs.get("tools") is not None
 
-    @patch("agent.ChatOllama")
+    @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")
     @patch("agent.InMemorySaver")
     def test_build_agent_custom_tools(self, mock_saver, mock_create, mock_chat):
@@ -154,7 +154,7 @@ class TestAgentBuild:
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs["tools"] == custom_tools
 
-    @patch("agent.ChatOllama")
+    @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")
     @patch("agent.InMemorySaver")
     def test_build_agent_user_document_flag(self, mock_saver, mock_create, mock_chat):
@@ -164,7 +164,7 @@ class TestAgentBuild:
         call_kwargs = mock_create.call_args[1]
         assert "search_user_document" in call_kwargs["system_prompt"]
 
-    @patch("agent.ChatOllama")
+    @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")
     @patch("agent.InMemorySaver")
     def test_build_agent_no_user_document(self, mock_saver, mock_create, mock_chat):

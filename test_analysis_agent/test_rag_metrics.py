@@ -1,22 +1,29 @@
 import vector_embed
 import os
 
+from dotenv import load_dotenv
 from deepeval.test_case import LLMTestCase, SingleTurnParams
 from deepeval.dataset import EvaluationDataset
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from deepeval.metrics import (
     ContextualRelevancyMetric,
     ContextualRecallMetric,
     ContextualPrecisionMetric,
 )
 from deepeval.metrics import GEval
-from deepeval.models import OllamaModel
+from deepeval.models import GeminiModel
 from deepeval import evaluate
 from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 from deepeval.synthesizer.config import ContextConstructionConfig
 
-# Shared Ollama judge model used by all deepeval metrics & the synthesizer
-judge_model = OllamaModel(model="gemma3:4b", base_url="http://localhost:11434", temperature=0.5)
+load_dotenv()
+
+# Shared Gemini judge model used by all deepeval metrics & the synthesizer
+judge_model = GeminiModel(
+    model="gemini-2.5-flash",
+    api_key=os.getenv("GEMINI_API_KEY"),
+    temperature=0.5,
+)
 
 os.environ["DEEPEVAL_PER_ATTEMPT_TIMEOUT_SECONDS_OVERRIDE"] = "600"
 
@@ -28,7 +35,7 @@ class DeepEvalEmbedder(DeepEvalBaseEmbeddingModel):
         return self.embedder
     
     def get_model_name(self):
-        return "nomic-embed-text"
+        return "gemini-embedding-001"
     
     def embed_text(self, text: str) -> list[float]:
         return self.embedder.embed_query(text)
@@ -85,12 +92,12 @@ local_embedder = DeepEvalEmbedder(vector_embed.embeddings)
 class MyAgent:
     def __init__(self):
         self.retriever = vector_embed.kb_compression_retriever
-        self.llm = ChatOllama(
-            model="gemma4:12b",
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=os.getenv("GEMINI_API_KEY"),
             temperature=0.5,
             top_k=20,
             top_p=0.15,
-            num_ctx=32768,
         )
 
     def retrieve(self, query: str):

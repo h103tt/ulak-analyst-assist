@@ -178,7 +178,7 @@ MOCK_LLM_NO_MATCH_RESPONSE = (
 
 @pytest.fixture
 def mock_llm_response():
-    """Return a mock that behaves like ChatOllama.invoke()."""
+    """Return a mock that behaves like ChatGoogleGenerativeAI.invoke()."""
     mock = MagicMock()
     mock.content = MOCK_LLM_RESPONSE_TEXT
     return mock

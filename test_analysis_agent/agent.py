@@ -1,4 +1,7 @@
-from langchain_ollama import ChatOllama
+import os
+
+from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.middleware import wrap_model_call
 from langchain.agents import create_agent
 from langchain_core.utils.uuid import uuid7
@@ -11,20 +14,24 @@ import rag_debug
 import vector_embed
 import pipeline_logging
 
-MODEL_NAME = "qwen3.5:4b"
-MODEL_PROVIDER = "ollama"
+load_dotenv()
+
+MODEL_NAME = "gemini-2.5-flash"
+MODEL_PROVIDER = "google_genai"
 
 HISTORY_TOKEN_BUDGET = 8000
 
 def get_llm():
-    model = ChatOllama(
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError("GEMINI_API_KEY is not set (check your .env file).")
+    model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
+        google_api_key=api_key,
         temperature=0.1,
         top_k=20,
         top_p=0.15,
-        repeat_penalty=1.3,
-        num_ctx=8192,
-        request_timeout=45.0,
+        timeout=45.0,
     )
     return model
 
@@ -133,29 +140,6 @@ def build_agent(tools=None, has_user_document: bool = False):
         checkpointer=InMemorySaver(),
         middleware=[trim_history_middleware],
     )
-
-
-# def build_agent(tools=None, has_user_document: bool = False):
-#     model = ChatOllama(
-#         model=MODEL_NAME,
-#         temperature=0.1,
-#         top_k=20,
-#         top_p=0.15,
-#         num_ctx=16384,
-#         request_timeout=45.0,
-#     )
-#     rag_debug.section("GENERATION", "Agent build", rag_debug.C.GENERATION)
-#     rag_debug.field("model", MODEL_NAME)
-#     rag_debug.field("temperature", 0.5)
-#     rag_debug.field("num_ctx", 16334)
-
-#     return create_agent(
-#         model=model,
-#         tools=tools if tools is not None else vector_embed.tools,
-#         system_prompt=get_system_prompt(has_user_document),
-#         checkpointer=InMemorySaver(),
-#     )
-
 
 
 if __name__ == "__main__":  #runs only if you execute this file
