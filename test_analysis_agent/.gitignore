@@ -1,4 +1,4 @@
-chromadb/
+chromadb/user_collections/
 uploads/
 __pycache__/
 *.pyc

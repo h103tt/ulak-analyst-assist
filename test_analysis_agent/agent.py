@@ -1,6 +1,3 @@
-import os
-
-from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.middleware import wrap_model_call
 from langchain.agents import create_agent
@@ -10,21 +7,23 @@ from dataclasses import dataclass
 from langchain_core.messages import trim_messages
 import time
 
+import gemini_keys
 import rag_debug
 import vector_embed
 import pipeline_logging
 
-load_dotenv()
-
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-3.6-flash"  # gemini-2.5-flash is no longer available to newly-created keys/projects
 MODEL_PROVIDER = "google_genai"
 
 HISTORY_TOKEN_BUDGET = 8000
 
+
+def _probe_chat_key(api_key: str) -> None:
+    ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=api_key, timeout=15.0).invoke("ping")
+
+
 def get_llm():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GEMINI_API_KEY is not set (check your .env file).")
+    api_key = gemini_keys.working_key(_probe_chat_key, purpose="chat")
     model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         google_api_key=api_key,

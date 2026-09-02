@@ -6,6 +6,27 @@ reaches the user."""
 from langchain_core.messages import SystemMessage, HumanMessage
 from agent import get_llm
 
+
+def _text_of(content) -> str:
+    """Flatten LangChain message content to plain text. Some models (e.g.
+    gemini-3.6-flash) return content as a list of blocks (``[{"type": "text",
+    "text": "..."}, ...]``) instead of a plain string -- naive ``str()`` on
+    that would show the user Python's repr of the block list instead of the
+    text. Mirrors bridge.py's text_of(); duplicated rather than imported
+    because bridge.py imports this module."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text", "")
+                parts.append(text if isinstance(text, str) else str(text))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    return "" if content is None else str(content)
+
 REFINE_SYSTEM_PROMPT = (
     "You are a meticulous reviewer for a Senior System Test Engineer's answers. "
     "You are given the original question, the aggregated context retrieved from "
@@ -36,8 +57,7 @@ def aggregate_tool_context(messages) -> str:
     for m in messages:
         if type(m).__name__ != "ToolMessage":
             continue
-        content = m.content if isinstance(m.content, str) else str(m.content)
-        content = content.strip()
+        content = _text_of(m.content).strip()
         if not content or content in seen:
             continue
         seen.add(content)
@@ -76,5 +96,4 @@ def refine_answer(
         ],
         config={"callbacks": callbacks} if callbacks else None,
     )
-    content = response.content
-    return content if isinstance(content, str) else str(content)
+    return _text_of(response.content)

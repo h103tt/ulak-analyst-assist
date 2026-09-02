@@ -25,6 +25,7 @@ from langchain_classic.retrievers.document_compressors.cross_encoder_rerank impo
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 import debug_artifacts
+import gemini_keys
 import rag_debug
 import retrieval_debug
 from rag_debug import C, _c, field, section, status
@@ -40,7 +41,9 @@ KB_DIR = os.path.join(AGENT_DIR, "knowledge_base")
 USER_UPLOADS_DIR = os.path.join(AGENT_DIR, "uploads")
 USER_COLLECTIONS_DIR = os.path.join(AGENT_DIR, "chromadb", "user_collections")
 OCR_MIN_CHAR_PER_PAGE = 50
-EMBED_BATCH_SIZE = 32
+EMBED_BATCH_SIZE = 100
+EMBED_RETRY_ATTEMPTS = 5
+EMBED_RETRY_BASE_DELAY_S = 20
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -65,7 +68,25 @@ def resolve_upload(file_name: str) -> str | None:
 
 ######--------models---------#############
 
-embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")  # embedding model (loosely fetches the top 15-20 relevant chunks)
+EMBEDDING_MODEL = "models/gemini-embedding-001"  # 3072-dim; the stored vectors depend on it, don't swap it without re-embedding the whole collection
+
+
+def _probe_embed_key(api_key: str) -> None:
+    GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, google_api_key=api_key).embed_query("ping")
+
+
+def build_embeddings(api_key: str | None = None) -> GoogleGenerativeAIEmbeddings:
+    """Embedding model client. With no ``api_key``, picks the first
+    configured key that actually works (cached for the process -- see
+    gemini_keys.working_key); pass one explicitly to skip that and use it
+    as-is, e.g. during kb_ingest.py's own key rotation."""
+    return GoogleGenerativeAIEmbeddings(
+        model=EMBEDDING_MODEL,
+        google_api_key=api_key or gemini_keys.working_key(_probe_embed_key, purpose="embed"),
+    )
+
+
+embeddings = build_embeddings()  # embedding model (loosely fetches the top 15-20 relevant chunks)
 reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
 compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
 
@@ -76,15 +97,15 @@ DOCS = [
     ("Environmental_and_hardware", "MIL-STD-1586A.pdf",             "MIL-STD-1586A"),
     ("Requirements_and_quality",   "15288-2023-2.pdf",              "15288-2023-2"),
     ("Requirements_and_quality",   "29119-1-2022.pdf",              "29119-1-2022"),
-    ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE-Test-Doc-829-2008"),
     ("Requirements_and_quality",   "requirements_and_testing.md",   "requirements_and_testing"),
     ("Security_and_safety",        "MIL-STD-882E.pdf",              "MIL-STD-882E"),
     ("Security_and_safety",        "SP800-53_REV-3.PDF",            "SP800-53_REV-3"),
 ]
-# NOTE: MIL-STD-810H_CHG-1.pdf, 830-1998.pdf, 29148-2018.pdf, ISO-9001-2015.pdf
-# and RTCA-DO-160G.pdf were removed from knowledge_base/ during the recent KB
-# cleanup commits. Re-add an entry here (with the file restored under
-# knowledge_base/<category>/) if any of them come back into scope.
+# NOTE: MIL-STD-810H_CHG-1.pdf, 830-1998.pdf, 29148-2018.pdf, ISO-9001-2015.pdf,
+# RTCA-DO-160G.pdf, and IEEE-Test-Doc-829-2008.pdf were removed from
+# knowledge_base/ (the latter moved to knowledge_base_excluded/ -- kept out of
+# scope deliberately, not deleted). Re-add an entry here (with the file
+# restored under knowledge_base/<category>/) if any of them come back into scope.
 
 DOC_METADATA_LOOKUP = {
     filename: {"category": category, "standard": standard_label}
@@ -302,7 +323,97 @@ vector_store = Chroma(
 )
 
 
+def use_api_key(api_key: str) -> None:
+    """Point the shared embeddings + vector store at a different Gemini key.
+
+    The free tier caps embedding calls per project per day, so a large ingest
+    has to rotate through keys from several projects (see kb_ingest.py).
+    """
+    global embeddings
+    embeddings = build_embeddings(api_key)
+    vector_store._embedding_function = embeddings
+
+
 ###########--------add chunks to the vector database--------#############
+class QuotaExhausted(RuntimeError):
+    """The embedding API kept returning 429 after every retry.
+
+    Raised instead of a generic error so callers can pause cleanly (rotate to
+    another API key, or stop and resume later) rather than crashing and losing
+    the run.
+    """
+
+
+_RETRY_DELAY_RE = re.compile(r"'retryDelay':\s*'(\d+(?:\.\d+)?)s'")
+
+
+def _suggested_retry_delay(error: Exception) -> float | None:
+    """The server's own RetryInfo.retryDelay, when the 429 payload carries one."""
+    match = _RETRY_DELAY_RE.search(str(error))
+    return float(match.group(1)) if match else None
+
+
+_TRANSIENT_MARKERS = ("UNAVAILABLE", "DEADLINE_EXCEEDED", "INTERNAL", "503", "500", "502", "504")
+
+
+def _add_batch_with_backoff(store, batch: list) -> list:
+    """Insert one batch.
+
+    A 429 (RESOURCE_EXHAUSTED) is never retried on the same key: Google's
+    embedding endpoint appears to count a rejected request's texts against
+    quota the same as an accepted one, so retrying a quota error just burns
+    more quota for a call that will fail again. It raises ``QuotaExhausted``
+    immediately so the caller can rotate to a fresh key instead.
+
+    A transient server error (503/500/502/504 -- brief outages unrelated to
+    quota) *is* retried, waiting for whichever is longer: the delay the
+    server asked for, or our own exponential backoff. Rotating keys would not
+    fix an outage, so that case is re-raised as-is if retries run out.
+    """
+    for attempt in range(EMBED_RETRY_ATTEMPTS):
+        try:
+            return store.add_documents(documents=batch)
+        except Exception as e:  # noqa: BLE001 - classify and either rotate or retry
+            if "RESOURCE_EXHAUSTED" in str(e):
+                raise QuotaExhausted(str(e)) from e
+            if not any(marker in str(e) for marker in _TRANSIENT_MARKERS):
+                raise
+            if attempt == EMBED_RETRY_ATTEMPTS - 1:
+                raise
+            delay = max(
+                EMBED_RETRY_BASE_DELAY_S * (2 ** attempt),
+                _suggested_retry_delay(e) or 0,
+            )
+            log.warning(
+                "embedding call failed (transient), retrying",
+                extra={"stage": "kb_ingest", "meta": {"attempt": attempt + 1, "delay_s": delay}},
+            )
+            time.sleep(delay)
+
+
+EMBED_BATCH_MAX_CHARS = 20_000  # ~5k tokens/request -- large chunks (avg 1.5-3k chars) blew through
+# a per-request token limit when batched by count alone: a 75-item, ~3.1k-avg-char
+# batch (~280k chars) was rejected as RESOURCE_EXHAUSTED on every key tried, even
+# freshly-probed ones, which only makes sense as a payload-size cap, not daily quota.
+
+
+def _batches_by_char_budget(documents: list, max_items: int, max_chars: int):
+    """Group documents into batches capped by count *and* total character
+    budget, whichever comes first. A single document longer than max_chars
+    still goes out alone rather than being dropped."""
+    batch: list = []
+    batch_chars = 0
+    for doc in documents:
+        doc_chars = len(doc.page_content or "")
+        if batch and (len(batch) >= max_items or batch_chars + doc_chars > max_chars):
+            yield batch
+            batch, batch_chars = [], 0
+        batch.append(doc)
+        batch_chars += doc_chars
+    if batch:
+        yield batch
+
+
 def _add_with_storage_debug(store, collection_name: str, documents: list) -> list:
     """Insert documents into ``store`` with storage-integrity logging:
     count before/after + a JSON snapshot (ids/metas/document previews)."""
@@ -314,9 +425,9 @@ def _add_with_storage_debug(store, collection_name: str, documents: list) -> lis
     inserted_ids: list[str] = []
     metas: list[dict] = []
     texts: list[str] = []
-    for i in range(0, len(documents), EMBED_BATCH_SIZE):
-        batch = filter_complex_metadata(documents[i : i + EMBED_BATCH_SIZE])
-        ids = store.add_documents(documents=batch)
+    for chunk_batch in _batches_by_char_budget(documents, EMBED_BATCH_SIZE, EMBED_BATCH_MAX_CHARS):
+        batch = filter_complex_metadata(chunk_batch)
+        ids = _add_batch_with_backoff(store, batch)
         inserted_ids.extend(ids)
         metas.extend(d.metadata for d in batch)
         texts.extend(d.page_content or "" for d in batch)

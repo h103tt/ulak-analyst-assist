@@ -1,7 +1,7 @@
+import gemini_keys
 import vector_embed
 import os
 
-from dotenv import load_dotenv
 from deepeval.test_case import LLMTestCase, SingleTurnParams
 from deepeval.dataset import EvaluationDataset
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -16,12 +16,16 @@ from deepeval import evaluate
 from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 from deepeval.synthesizer.config import ContextConstructionConfig
 
-load_dotenv()
+def _probe_chat_key(api_key: str) -> None:
+    ChatGoogleGenerativeAI(model="gemini-3.6-flash", google_api_key=api_key, timeout=15.0).invoke("ping")
+
+
+_judge_key = gemini_keys.working_key(_probe_chat_key, purpose="chat")
 
 # Shared Gemini judge model used by all deepeval metrics & the synthesizer
 judge_model = GeminiModel(
-    model="gemini-2.5-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),
+    model="gemini-3.6-flash",
+    api_key=_judge_key,
     temperature=0.5,
 )
 
@@ -93,8 +97,8 @@ class MyAgent:
     def __init__(self):
         self.retriever = vector_embed.kb_compression_retriever
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GEMINI_API_KEY"),
+            model="gemini-3.6-flash",
+            google_api_key=_judge_key,
             temperature=0.5,
             top_k=20,
             top_p=0.15,
