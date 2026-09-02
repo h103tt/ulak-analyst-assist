@@ -329,6 +329,7 @@ if __name__ == "__main__":
 
 ########--------retrieval of the related chunks----------###########
 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 15})
+retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 15})
 
 # Logged retriever: same base MMR retriever + reranker, but every query logs
 # candidates, distances, pass/filter verdicts and the final context.
@@ -340,6 +341,19 @@ retriever_tool = create_retriever_tool(
     name="search_testing_standards",
     description=(
         "Search internal standards documents for systems engineering processes, testing, "
+        "safety, cybersecurity, and requirements engineering guidance. Call this tool for ANY question "
+        "about the content, structure, process groups, definitions, or requirements "
+        "of a standard — not just when generating test cases. "
+        "Each result includes 'standard' and 'category' metadata — always cite the "
+        "'standard' field, never invent a clause number not present in the retrieved text. "
+        "Categories available: "
+        "1. 01_se_process_and_requirements (systems lifecycle and engineering standards), "
+        "2. 02_verification_and_testing (test design and documentation standards), "
+        "3. 03_safety_security_config (military and NIST safety/cybersecurity standards), "
+        "4. 04_requirements (general requirements engineering concepts). "
+        "Always call this tool before answering any question about standard content, and "
+        "before generating test cases or validating a requirement."
+    ),
         "safety, cybersecurity, and requirements engineering guidance. Call this tool for ANY question "
         "about the content, structure, process groups, definitions, or requirements "
         "of a standard — not just when generating test cases. "
@@ -581,6 +595,7 @@ def build_session_retriever_tool(
     collection_suffix: str | None = None,
     k: int = 5,
 ) -> tuple[object, dict]:
+    """Index user-uploaded files into a per-session Chroma collection and
     """Index user-uploaded files into a per-session Chroma collection and
     return ``(retriever_tool, ingest_report)``.
 

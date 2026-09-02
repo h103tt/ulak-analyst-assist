@@ -123,7 +123,7 @@ def build_agent(tools=None, has_user_document: bool = False):
         temperature=0.1,
         top_k=20,
         top_p=0.15,
-        num_ctx=16384,
+        num_ctx=8167,
         request_timeout=45.0,
     )
     rag_debug.section("GENERATION", "Agent build", rag_debug.C.GENERATION)
