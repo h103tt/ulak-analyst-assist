@@ -59,6 +59,20 @@ def primary_key() -> str:
 
 
 _working_key_cache: dict[str, str] = {}
+_bad_keys: dict[str, set[str]] = {}
+
+
+def invalidate(purpose: str) -> None:
+    """Drop the cached key for ``purpose`` and remember it as bad, so the
+    next ``working_key()`` call skips it instead of re-probing and picking
+    the same key again. For when a key passes the initial probe but then
+    hits a real 429 mid-run (e.g. a burst across several concurrent test
+    processes sharing the same key) -- call this, then call working_key()
+    again to rotate to the next one."""
+    bad = _bad_keys.setdefault(purpose, set())
+    cached = _working_key_cache.pop(purpose, None)
+    if cached:
+        bad.add(cached)
 
 
 def working_key(probe, purpose: str = "default") -> str:
@@ -75,7 +89,7 @@ def working_key(probe, purpose: str = "default") -> str:
     if purpose in _working_key_cache:
         return _working_key_cache[purpose]
 
-    keys = all_keys()
+    keys = [k for k in all_keys() if k not in _bad_keys.get(purpose, set())]
     if not keys:
         raise EnvironmentError(
             "No Gemini API key found. Set GEMINI_API_KEY, or a numbered pool "

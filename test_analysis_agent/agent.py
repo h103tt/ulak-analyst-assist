@@ -12,7 +12,7 @@ import rag_debug
 import vector_embed
 import pipeline_logging
 
-MODEL_NAME = "gemini-3.6-flash"  # gemini-2.5-flash is no longer available to newly-created keys/projects
+MODEL_NAME = "gemini-3.5-flash-lite"  # full "Flash" tier free-tier RPD is only 20/day (per AI Studio rate limits); "Flash Lite" is 500/day
 MODEL_PROVIDER = "google_genai"
 
 HISTORY_TOKEN_BUDGET = 8000

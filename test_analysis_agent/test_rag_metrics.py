@@ -17,14 +17,14 @@ from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 from deepeval.synthesizer.config import ContextConstructionConfig
 
 def _probe_chat_key(api_key: str) -> None:
-    ChatGoogleGenerativeAI(model="gemini-3.6-flash", google_api_key=api_key, timeout=15.0).invoke("ping")
+    ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", google_api_key=api_key, timeout=15.0).invoke("ping")
 
 
 _judge_key = gemini_keys.working_key(_probe_chat_key, purpose="chat")
 
 # Shared Gemini judge model used by all deepeval metrics & the synthesizer
 judge_model = GeminiModel(
-    model="gemini-3.6-flash",
+    model="gemini-3.5-flash-lite",
     api_key=_judge_key,
     temperature=0.5,
 )
@@ -97,7 +97,7 @@ class MyAgent:
     def __init__(self):
         self.retriever = vector_embed.kb_compression_retriever
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-3.6-flash",
+            model="gemini-3.5-flash-lite",
             google_api_key=_judge_key,
             temperature=0.5,
             top_k=20,
