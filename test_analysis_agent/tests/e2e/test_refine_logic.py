@@ -25,7 +25,7 @@ AGENT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
 
-from tests.e2e._helpers import requires_ollama, is_model_pulled  # noqa: E402
+from tests.e2e._helpers import requires_gemini  # noqa: E402
 
 pytestmark = pytest.mark.e2e
 
@@ -238,17 +238,12 @@ class TestBridgeRefineIntegration:
 
 
 # ===================================================================
-# 4. Live correction of a fabricated citation (requires_ollama)
+# 4. Live correction of a fabricated citation (requires_gemini)
 # ===================================================================
 @pytest.mark.integration
-@requires_ollama
+@requires_gemini
 class TestRefineAnswerLive:
     def test_refine_removes_citation_not_present_in_context(self):
-        import agent
-
-        if not is_model_pulled(agent.MODEL_NAME):
-            pytest.skip(f"Configured generation model '{agent.MODEL_NAME}' is not pulled in Ollama")
-
         from refine import refine_answer
 
         real_context = (

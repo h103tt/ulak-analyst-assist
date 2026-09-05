@@ -28,7 +28,7 @@ AGENT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
 
-from tests.e2e._helpers import requires_ollama, skip_if_kb_empty, is_model_pulled  # noqa: E402
+from tests.e2e._helpers import requires_gemini, skip_if_kb_empty  # noqa: E402
 
 pytestmark = pytest.mark.e2e
 
@@ -195,19 +195,47 @@ class TestChunkTagWellFormedness:
 # 3. Stricter citation-context co-location (live)
 # ===================================================================
 @pytest.mark.integration
-@requires_ollama
+@requires_gemini
 class TestCitationContextCoLocation:
     CITATION_RE = re.compile(
         r"\(([A-Za-z0-9/_.\- ]+?),\s*(?:Section\s+([^\),]+)|p\.\s*(\d+(?:-\d+)?))\)"
     )
+    CHUNK_TAG_RE = re.compile(r"<chunk\s+([^>]*)>")
+    ATTR_RE = re.compile(r'(\w+)="([^"]*)"')
+    LEADING_NUM_RE = re.compile(r"^([0-9]+(?:\.[0-9]+)*)")
+
+    @classmethod
+    def _chunk_attrs(cls, text: str) -> list[dict[str, str]]:
+        """Parse every ``<chunk ...>`` opening tag in ``text`` into an
+        attribute dict. A single retrieved-tool message can contain several
+        concatenated chunks, so this returns one dict per chunk rather than
+        assuming a single tag."""
+        return [dict(cls.ATTR_RE.findall(tag)) for tag in cls.CHUNK_TAG_RE.findall(text)]
+
+    @classmethod
+    def _section_id(cls, value: str) -> str:
+        """The section attribute often carries the heading text after the
+        number, with a trailing period the model doesn't repeat (e.g.
+        ``section="1. SCOPE"`` vs a citation of ``Section 1``, or
+        ``section="6.1 INTENDED USE"`` vs ``Section 6.1``). Compare on just
+        the leading dotted-decimal number so that formatting difference
+        doesn't look like an invented section."""
+        v = value.strip()
+        m = cls.LEADING_NUM_RE.match(v)
+        return m.group(1) if m else v
+
+    @staticmethod
+    def _page_matches(cited: str, attr_value: str) -> bool:
+        """True if the cited page shares a page number with the attribute
+        value -- tolerant of the attribute being a range (e.g.
+        ``page="28-29"``) that the model cites by one side of."""
+        cited_nums = set(re.findall(r"\d+", cited))
+        attr_nums = set(re.findall(r"\d+", attr_value))
+        return bool(cited_nums & attr_nums)
 
     @pytest.fixture(scope="class")
     def live_client(self):
-        import agent
         import bridge
-
-        if not is_model_pulled(agent.MODEL_NAME):
-            pytest.skip(f"Configured generation model '{agent.MODEL_NAME}' is not pulled in Ollama")
 
         with TestClient(bridge.app) as client:
             for _ in range(30):
@@ -241,14 +269,26 @@ class TestCitationContextCoLocation:
                 if m["type"] == "ToolMessage" and m.get("name") == "search_testing_standards"
             ]
 
+            all_chunk_attrs = [
+                attrs for chunk in retrieved_chunks for attrs in self._chunk_attrs(chunk)
+            ]
+
             for standard, section, page in self.CITATION_RE.findall(data["answer"]):
                 checked += 1
                 loc_value = (section or page).strip()
                 loc_attr = "section" if section else "page"
-                co_located = any(
-                    f'standard="{standard.strip()}"' in chunk and f'{loc_attr}="{loc_value}"' in chunk
-                    for chunk in retrieved_chunks
-                )
+                if loc_attr == "section":
+                    co_located = any(
+                        attrs.get("standard", "").strip() == standard.strip()
+                        and self._section_id(attrs.get("section", "")) == self._section_id(loc_value)
+                        for attrs in all_chunk_attrs
+                    )
+                else:
+                    co_located = any(
+                        attrs.get("standard", "").strip() == standard.strip()
+                        and self._page_matches(loc_value, attrs.get("page", ""))
+                        for attrs in all_chunk_attrs
+                    )
                 assert co_located, (
                     f"{item['id']}: answer cites ({standard.strip()}, {loc_attr}={loc_value!r}) "
                     f"but no single retrieved chunk has both that standard AND that "
@@ -263,15 +303,11 @@ class TestCitationContextCoLocation:
 # 4. Cross-standard comparison issues separate, focused search calls (live)
 # ===================================================================
 @pytest.mark.integration
-@requires_ollama
+@requires_gemini
 class TestCrossStandardCitation:
     @pytest.fixture(scope="class")
     def live_client(self):
-        import agent
         import bridge
-
-        if not is_model_pulled(agent.MODEL_NAME):
-            pytest.skip(f"Configured generation model '{agent.MODEL_NAME}' is not pulled in Ollama")
 
         with TestClient(bridge.app) as client:
             for _ in range(30):

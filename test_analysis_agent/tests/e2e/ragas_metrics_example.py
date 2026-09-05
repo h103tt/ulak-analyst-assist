@@ -2,9 +2,9 @@
 RAGAS integration sketch (illustrative, not wired into the CI suite).
 =======================================================================
 The project already standardized on deepeval (see test_rag_metrics.py and
-test_qa_regression.py) with a local Ollama judge model, which is the
+test_qa_regression.py) with a Gemini judge model, which is the
 lower-friction choice here since it reuses the same judge_model /
-local_embedder plumbing everywhere else. This file shows the equivalent
+embedder plumbing everywhere else. This file shows the equivalent
 RAGAS wiring in case the team wants to cross-check deepeval's scores with a
 second framework, or standardize on RAGAS instead.
 
@@ -13,9 +13,10 @@ Install (not in requirements.txt by default):
 
 RAGAS expects a HuggingFace `datasets.Dataset` with columns:
     question, answer, contexts (list[str]), ground_truth
-and evaluates with LangChain-wrapped LLM/embeddings (so ChatOllama /
-OllamaEmbeddings from this project plug in directly, no adapter needed
-unlike deepeval's OllamaModel/DeepEvalBaseEmbeddingModel wrappers).
+and evaluates with LangChain-wrapped LLM/embeddings (so
+ChatGoogleGenerativeAI / GoogleGenerativeAIEmbeddings from this project
+plug in directly, no adapter needed unlike deepeval's
+GeminiModel/DeepEvalBaseEmbeddingModel wrappers).
 """
 from __future__ import annotations
 
@@ -57,7 +58,6 @@ def run_ragas_evaluation(dataset):
     question; context_precision/recall = retrieval quality -- the RAGAS
     equivalents of the deepeval Contextual* metrics used in
     test_qa_regression.py::TestRetrievalQualityMetrics."""
-    from langchain_ollama import ChatOllama, OllamaEmbeddings
     from ragas import evaluate
     from ragas.metrics import (
         answer_relevancy,
@@ -66,8 +66,11 @@ def run_ragas_evaluation(dataset):
         faithfulness,
     )
 
-    judge_llm = ChatOllama(model="gemma3:4b", temperature=0.3)
-    judge_embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    import agent
+    import vector_embed
+
+    judge_llm = agent.get_llm()
+    judge_embeddings = vector_embed.embeddings
 
     return evaluate(
         dataset,

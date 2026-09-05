@@ -31,7 +31,7 @@
       "id": "GQ-003",
       "question": "What system life cycle processes are defined in ISO/IEC/IEEE 15288?",
       "expected_category": "Requirements_and_quality",
-      "expected_standard": "15288-2023-2",
+      "expected_standard": "ISO/IEC/IEEE 15288",
       "expected_answer": "ISO/IEC/IEEE 15288 defines a common framework of system life cycle processes covering agreement, organizational project-enabling, technical management, and technical processes used to describe the life cycle of human-made systems.",
       "must_mention": ["life cycle", "process"]
     },
@@ -39,7 +39,7 @@
       "id": "GQ-004",
       "question": "What is the purpose of ISO/IEC/IEEE 29119-1 and what does it define?",
       "expected_category": "Requirements_and_quality",
-      "expected_standard": "29119-1-2022",
+      "expected_standard": "ISO/IEC/IEEE 29119-1",
       "expected_answer": "ISO/IEC/IEEE 29119-1 defines vocabulary, concepts, and a general framework for software testing that underpins the rest of the 29119 series (test processes, documentation, and techniques).",
       "must_mention": ["software testing", "concepts"]
     },
@@ -47,7 +47,7 @@
       "id": "GQ-005",
       "question": "What test documentation artifacts does the IEEE 829 test documentation standard require?",
       "expected_category": "Requirements_and_quality",
-      "expected_standard": "IEEE-Test-Doc-829-2008",
+      "expected_standard": "IEEE 829",
       "expected_answer": "IEEE 829-2008 specifies the format and content of a set of software test documents, including test plans, test design specifications, test case specifications, test procedures, and test summary reports.",
       "must_mention": ["test plan", "test case", "test summary"]
     },
@@ -63,7 +63,7 @@
       "id": "GQ-007",
       "question": "What security control families does NIST SP 800-53 define, and how does access control fit in?",
       "expected_category": "Security_and_safety",
-      "expected_standard": "SP800-53_REV-3",
+      "expected_standard": "NIST SP 800-53",
       "expected_answer": "NIST SP 800-53 defines a catalog of security and privacy controls organized into families (e.g. Access Control, Audit and Accountability, System and Communications Protection) that federal information systems select and implement based on risk.",
       "must_mention": ["security control", "access control"]
     },

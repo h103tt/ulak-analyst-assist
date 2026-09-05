@@ -2,7 +2,7 @@
 Performance & Concurrency Tests (mocked, CI-safe)
 ====================================================
 Exercises the real FastAPI ASGI app under concurrent load with the agent
-mocked out at the agent.build_agent boundary -- no Ollama/ChromaDB needed,
+mocked out at the agent.build_agent boundary -- no Gemini/ChromaDB needed,
 so these run in every CI invocation. Focused on: cross-thread response
 isolation under concurrency, SSE heartbeat behavior on slow turns, and
 sequential-throughput sanity.

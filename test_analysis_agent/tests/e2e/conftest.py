@@ -5,7 +5,7 @@ tests/conftest.py (one level up) already mocks heavy optional deps
 / `import agent` / `import bridge` stay import-safe even without those
 packages installed. This file only adds what's specific to the E2E suite:
 the golden dataset fixture and the KB-populated check. Plain helper
-functions (skip_if_kb_empty, requires_ollama, ...) live in _helpers.py so
+functions (skip_if_kb_empty, requires_gemini, ...) live in _helpers.py so
 test modules can import them without pytest also picking up a second copy
 via its own conftest auto-loading.
 """

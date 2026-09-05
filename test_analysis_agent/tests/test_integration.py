@@ -1,13 +1,11 @@
 """
 End-to-End Integration Tests for ULAK Test Analysis Agent
 =========================================================
-Tests real interactions between ChromaDB, Ollama Embeddings/LLM,
+Tests real interactions between ChromaDB, Gemini Embeddings/LLM,
 Docling/Text loaders, dynamic session indexing, and the FastAPI bridge.
 
 Prerequisites:
-- Ollama running locally (ollama serve) with models:
-  - nomic-embed-text
-  - gemma4:12b (or the model configured in agent.py)
+- A working Gemini API key configured (see gemini_keys.py / .env)
 
 Run:
     cd ulak-analyst-assist/test_analysis_agent
@@ -22,7 +20,6 @@ import tempfile
 import time
 from pathlib import Path
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -38,18 +35,18 @@ import vector_embed
 # Helper Fixtures & Health Checks
 # ===================================================================
 
-def is_ollama_online() -> bool:
-    """Check if the local Ollama instance is responsive."""
+def is_gemini_online() -> bool:
+    """Check if a configured Gemini API key is currently working."""
     try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
-        return r.status_code == 200
+        agent.get_llm()
+        return True
     except Exception:
         return False
 
-# Skip marker for tests that require a live Ollama daemon
-requires_ollama = pytest.mark.skipif(
-    not is_ollama_online(),
-    reason="Ollama server is not running on http://localhost:11434"
+# Skip marker for tests that require a live, working Gemini API key
+requires_gemini = pytest.mark.skipif(
+    not is_gemini_online(),
+    reason="Gemini API is not reachable (no working key, or every model in MODEL_CHAIN is down)"
 )
 
 # Default per-test wall-clock cap for direct agent.invoke() calls that have
@@ -115,7 +112,7 @@ def temp_workspace():
 class TestUserDocumentRAGIntegration:
     """Verify loading real documents into session collections and retrieving them."""
 
-    @requires_ollama
+    @requires_gemini
     def test_build_session_retriever_and_query(self, temp_workspace):
         """Verify that a newly uploaded file is embedded and retrievable via MMR."""
         doc_path = os.path.join(temp_workspace["uploads"], "SRS_Security.md")
@@ -170,7 +167,7 @@ class TestUserDocumentRAGIntegration:
 class TestSessionIsolationIntegration:
     """Verify that thread/session ChromaDB collections do not leak data across tenants."""
 
-    @requires_ollama
+    @requires_gemini
     def test_session_data_isolation(self, temp_workspace):
         # Session A: Ingests Project Alpha document
         doc_a = os.path.join(temp_workspace["uploads"], "Project_Alpha.txt")
@@ -210,7 +207,7 @@ class TestSessionIsolationIntegration:
 class TestModelBehaviorAndISO29119Compliance:
     """Verify that the real model outputs structured test cases and detects ambiguity."""
 
-    @requires_ollama
+    @requires_gemini
     def test_agent_generates_compliant_test_plan(self, temp_workspace):
         """Verify requirement traceability, structured fields, and boundary tests."""
         doc_path = os.path.join(temp_workspace["uploads"], "SRS_Motor.txt")
@@ -260,7 +257,7 @@ class TestModelBehaviorAndISO29119Compliance:
         # 3. Test steps / boundary analysis presence
         assert any(term in output_text for term in ["100", "3500", "ERR_INVALID_RANGE", "Boundary", "Steps"])
 
-    @requires_ollama
+    @requires_gemini
     def test_agent_detects_ambiguous_requirement(self):
         """Verify the agent flags missing parameters (thresholds/timing/messaging).
 
@@ -319,7 +316,7 @@ class TestFastAPIBridgeE2E:
             assert resp.status_code == 200
             assert data["status"] == "ok"
 
-    @requires_ollama
+    @requires_gemini
     def test_trace_endpoint_live(self):
         """Verify /trace triggers agent execution and records run metadata."""
         with TestClient(bridge.app) as client:
@@ -342,7 +339,7 @@ class TestFastAPIBridgeE2E:
             assert len(data["answer"]) > 20
             assert "trace_id" in data
 
-    @requires_ollama
+    @requires_gemini
     def test_chat_sse_stream_live(self):
         """Verify /chat SSE streaming delivers real text-delta events from the model."""
         with TestClient(bridge.app) as client:

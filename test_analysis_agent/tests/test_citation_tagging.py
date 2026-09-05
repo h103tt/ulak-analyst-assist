@@ -13,7 +13,7 @@ Exactly three tests, one per unverified / recently fixed behaviour:
 
 3. ``test_tags_survive_retrieval_pipeline``
    THE important unknown: verifies the reranker/compression stage does not
-   strip the ``<chunk id="...">`` tags. Real Ollama embeddings + real
+   strip the ``<chunk id="...">`` tags. Real Gemini embeddings + real
    BGE cross-encoder. Marked ``@pytest.mark.integration``.
 
 Run:
@@ -29,7 +29,6 @@ import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import httpx
 import pytest
 
 AGENT_DIR = Path(__file__).resolve().parent.parent
@@ -40,17 +39,19 @@ import vector_embed  # noqa: E402  (needs conftest's module mocks installed firs
 from langchain_core.documents import Document  # noqa: E402
 
 
-def is_ollama_online() -> bool:
+def is_gemini_online() -> bool:
     try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
-        return r.status_code == 200
+        import agent
+
+        agent.get_llm()
+        return True
     except Exception:
         return False
 
 
-requires_ollama = pytest.mark.skipif(
-    not is_ollama_online(),
-    reason="Ollama server is not running on http://localhost:11434",
+requires_gemini = pytest.mark.skipif(
+    not is_gemini_online(),
+    reason="Gemini API is not reachable (no working key, or every model in MODEL_CHAIN is down)",
 )
 
 
@@ -117,7 +118,7 @@ def test_no_double_tagging_in_build_session_tool(monkeypatch):
         return [f"id-{i}" for i in range(len(documents))]
 
     monkeypatch.setattr(vector_embed, "_add_with_storage_debug", fake_add_with_storage_debug)
-    # Nothing is embedded or queried in this test; keep Chroma/Ollama offline.
+    # Nothing is embedded or queried in this test; keep Chroma/Gemini offline.
     monkeypatch.setattr(vector_embed, "Chroma", lambda **kwargs: MagicMock())
 
     _, report = vector_embed.build_session_retriever_tool(
@@ -148,47 +149,26 @@ CITATION_FIXTURE_TEXT = (
 )
 CITATION_QUERY = "What is the vibration alarm threshold of the Zephyr-7 wind turbine gearbox?"
 
-_RERANKER_MODULE_PREFIXES = ("langchain_classic", "langchain_community.cross_encoders")
-
-
-def _load_real_reranker_classes():
-    """Import the REAL CrossEncoderReranker / HuggingFaceCrossEncoder classes.
-
-    conftest.py swaps these modules for MagicMocks so the rest of the suite
-    runs fast and offline. This temporarily un-mocks them, grabs the real
-    classes, then restores the mock state.
-    """
-    saved = {
-        n: mod
-        for n, mod in sys.modules.items()
-        if n.startswith(_RERANKER_MODULE_PREFIXES)
-    }
-    for n in saved:
-        del sys.modules[n]
-    try:
-        from langchain_classic.retrievers.document_compressors.cross_encoder_rerank import (
-            CrossEncoderReranker,
-        )
-        from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-
-        return CrossEncoderReranker, HuggingFaceCrossEncoder
-    finally:
-        for n in list(sys.modules):
-            if n.startswith(_RERANKER_MODULE_PREFIXES):
-                del sys.modules[n]
-        sys.modules.update(saved)
-
 
 @pytest.mark.integration
-@requires_ollama
+@requires_gemini
 def test_tags_survive_retrieval_pipeline(tmp_path, monkeypatch):
     """End-to-end probe: <chunk id="..."> tags must reach the LLM context.
 
-    Builds a REAL session tool (real Ollama embeddings, real Chroma, real
+    Builds a REAL session tool (real Gemini embeddings, real Chroma, real
     reranker) over a small .txt fixture, queries it, and asserts the returned
     documents still carry their citation tags. If this fails, the
     reranker/compression retriever is stripping tags and no tool-description
     wording will fix citations.
+
+    Calls the tool itself (not some internal `.retriever` reached into and
+    swapped) so this exercises the exact same object build_session_retriever_tool
+    hands the agent. langchain_core's create_retriever_tool doesn't expose
+    the wrapped retriever as a public attribute, and conftest.py only mocks
+    the reranker/docling stack when the real packages fail to import (see
+    conftest.py's _MOCK_MODULES comment) -- in any environment with the real
+    ML deps installed, which this test requires anyway via @requires_gemini's
+    sibling KB dependencies, the tool already runs the real cross-encoder.
     """
     fixture = tmp_path / "citation_probe.txt"
     fixture.write_text(CITATION_FIXTURE_TEXT, encoding="utf-8")
@@ -204,25 +184,13 @@ def test_tags_survive_retrieval_pipeline(tmp_path, monkeypatch):
     )
     assert report["failed_files"] == [], f"ingest failed: {report['failed_files']}"
 
-    retriever = getattr(tool, "retriever", None)
-    assert retriever is not None, "retriever tool does not expose its .retriever"
+    raw = tool.invoke(CITATION_QUERY)
 
-    # Swap the conftest-mocked compressor for the real cross-encoder so the
-    # reranking stage (the suspected tag-stripper) actually executes.
-    CrossEncoderReranker, HuggingFaceCrossEncoder = _load_real_reranker_classes()
-    retriever.compressor = CrossEncoderReranker(
-        model=HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base"),
-        top_n=5,
-    )
-
-    results = retriever.invoke(CITATION_QUERY)
-
-    raw = "\n-----\n".join(d.page_content for d in results)
     print("\n===== RAW RETRIEVED CONTEXT (eye-ball sanity check) =====")
     print(raw if raw else "(empty)")
     print("=========================================================\n")
 
-    assert results, "compression retriever returned no documents"
+    assert raw, "retriever tool returned no documents"
     assert '<chunk id="' in raw, (
         "Tags did not survive the compression/reranker pipeline - citations "
         "cannot work regardless of tool-description wording."

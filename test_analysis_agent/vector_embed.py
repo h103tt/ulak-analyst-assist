@@ -128,12 +128,12 @@ retriever_document_prompt = PromptTemplate.from_template(
 DOCS = [
     ("Environmental_and_hardware", "MIL-STD-461.pdf",               "MIL-STD-461"),
     ("Environmental_and_hardware", "MIL-STD-1586A.pdf",             "MIL-STD-1586A"),
-    ("Requirements_and_quality",   "15288-2023-2.pdf",              "15288-2023-2"),
-    ("Requirements_and_quality",   "29119-1-2022.pdf",              "29119-1-2022"),
+    ("Requirements_and_quality",   "15288-2023-2.pdf",              "ISO/IEC/IEEE 15288"),
+    ("Requirements_and_quality",   "29119-1-2022.pdf",              "ISO/IEC/IEEE 29119-1"),
     ("Requirements_and_quality",   "requirements_and_testing.md",   "requirements_and_testing"),
-    ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE-Test-Doc-829-2008"),
+    ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE 829"),
     ("Security_and_safety",        "MIL-STD-882E.pdf",              "MIL-STD-882E"),
-    ("Security_and_safety",        "SP800-53_REV-3.PDF",            "SP800-53_REV-3"),
+    ("Security_and_safety",        "SP800-53_REV-3.PDF",            "NIST SP 800-53"),
 ]
 # NOTE: MIL-STD-810H_CHG-1.pdf, 830-1998.pdf, 29148-2018.pdf, ISO-9001-2015.pdf,
 # and RTCA-DO-160G.pdf remain out of scope (never added to knowledge_base/).
@@ -164,11 +164,11 @@ DOC_CHUNK_MAX_TOKENS: dict[str, int] = {}
 DOC_REVISION_DATE = {
     "MIL-STD-461": "1967-07-31",    # original, unlettered -- MIL-STD-461G (2015) is the current revision
     "MIL-STD-1586A": "1989-06-15",  # Revision A
-    "15288-2023-2": "2023-05",      # ISO/IEC/IEEE 15288:2023, 2nd edition
-    "29119-1-2022": "2022-01",      # ISO/IEC/IEEE 29119-1:2022, 2nd edition
+    "ISO/IEC/IEEE 15288": "2023-05",      # ISO/IEC/IEEE 15288:2023, 2nd edition
+    "ISO/IEC/IEEE 29119-1": "2022-01",    # ISO/IEC/IEEE 29119-1:2022, 2nd edition
     "MIL-STD-882E": "2012-05-11",   # Revision E
-    "SP800-53_REV-3": "2009-08",    # NIST SP 800-53 Revision 3
-    "IEEE-Test-Doc-829-2008": "2008-07-18",  # per the PDF's own title page (IEEE-SA board approval was 2008-03-27)
+    "NIST SP 800-53": "2009-08",    # NIST SP 800-53 Revision 3
+    "IEEE 829": "2008-07-18",  # per the PDF's own title page (IEEE-SA board approval was 2008-03-27)
 }
 
 

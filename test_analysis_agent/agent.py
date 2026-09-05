@@ -21,7 +21,7 @@ import pipeline_logging
 # with only 20 RPD, kept only so the agent degrades instead of dying outright
 # once both Lite pools are exhausted for every configured key.
 MODEL_CHAIN = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"]
-MODEL_NAME = MODEL_CHAIN[0]  # kept for the stale is_model_pulled()/Ollama skip checks in tests/e2e
+MODEL_NAME = MODEL_CHAIN[0]  # the default/first model in the chain, for logging/display
 MODEL_PROVIDER = "google_genai"
 
 HISTORY_TOKEN_BUDGET = 8000

@@ -1,8 +1,8 @@
 """
 Golden Q&A dataset generator for E2E RAG regression testing.
 
-This is a MANUAL/CLI script, not a pytest test -- it talks to a live Ollama
-instance and a docling parsing pipeline, both of which are slow and
+This is a MANUAL/CLI script, not a pytest test -- it talks to the live
+Gemini API and a docling parsing pipeline, both of which are slow and
 non-deterministic, so it must never run as part of the automated suite.
 It completes the synthesizer wiring that was left commented out in
 test_analysis_agent/test_rag_metrics.py.
@@ -11,8 +11,7 @@ Usage (from test_analysis_agent/):
     uv run python tests/e2e/generate_golden_dataset.py --out tests/e2e/golden_dataset.generated.json
 
 Requirements:
-    - Ollama running locally with the judge model available
-      (ollama pull gemma3:4b  -- or override with --judge-model)
+    - A working Gemini API key configured (see gemini_keys.py / .env)
     - The knowledge_base/ PDFs this script points at must exist on disk
       (see KB_SOURCE_FILES below; keep this list in sync with
       vector_embed.DOCS / DOC_METADATA_LOOKUP)
@@ -41,11 +40,11 @@ KB_DIR = AGENT_DIR / "knowledge_base"
 KB_SOURCE_FILES = [
     ("Environmental_and_hardware", "MIL-STD-461.pdf", "MIL-STD-461"),
     ("Environmental_and_hardware", "MIL-STD-1586A.pdf", "MIL-STD-1586A"),
-    ("Requirements_and_quality", "15288-2023-2.pdf", "15288-2023-2"),
-    ("Requirements_and_quality", "29119-1-2022.pdf", "29119-1-2022"),
-    ("Requirements_and_quality", "IEEE-Test-Doc-829-2008.pdf", "IEEE-Test-Doc-829-2008"),
+    ("Requirements_and_quality", "15288-2023-2.pdf", "ISO/IEC/IEEE 15288"),
+    ("Requirements_and_quality", "29119-1-2022.pdf", "ISO/IEC/IEEE 29119-1"),
+    ("Requirements_and_quality", "IEEE-Test-Doc-829-2008.pdf", "IEEE 829"),
     ("Security_and_safety", "MIL-STD-882E.pdf", "MIL-STD-882E"),
-    ("Security_and_safety", "SP800-53_REV-3.PDF", "SP800-53_REV-3"),
+    ("Security_and_safety", "SP800-53_REV-3.PDF", "NIST SP 800-53"),
 ]
 
 
@@ -65,18 +64,17 @@ def _resolve_present_files() -> list[tuple[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="tests/e2e/golden_dataset.generated.json")
-    parser.add_argument("--judge-model", default="gemma3:4b")
     parser.add_argument("--max-goldens-per-doc", type=int, default=3)
     args = parser.parse_args()
 
     # Imported lazily: deepeval + its synthesizer pull in heavy optional
     # deps (docling, transformers, ...) that a pure pytest-collection run
     # should never have to pay for.
-    from deepeval.models import OllamaModel
     from deepeval.synthesizer import Synthesizer
     from deepeval.synthesizer.config import ContextConstructionConfig
     from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 
+    from tests.e2e._helpers import get_judge_model
     import vector_embed
 
     class DeepEvalEmbedder(DeepEvalBaseEmbeddingModel):
@@ -87,7 +85,7 @@ def main() -> None:
             return self.embedder
 
         def get_model_name(self) -> str:
-            return "nomic-embed-text"
+            return vector_embed.EMBEDDING_MODEL
 
         def embed_text(self, text: str) -> list[float]:
             return self.embedder.embed_query(text)
@@ -101,7 +99,7 @@ def main() -> None:
         async def a_embed_texts(self, texts: list[str]) -> list[list[float]]:
             return self.embed_texts(texts)
 
-    judge_model = OllamaModel(model=args.judge_model, base_url="http://localhost:11434", temperature=0.3)
+    judge_model = get_judge_model()
     synthesizer = Synthesizer(model=judge_model)
     context_config = ContextConstructionConfig(
         embedder=DeepEvalEmbedder(vector_embed.embeddings),
