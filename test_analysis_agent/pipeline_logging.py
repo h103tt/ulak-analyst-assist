@@ -167,10 +167,24 @@ def _preview(text: Any, limit: int = 200) -> str:
 
 class HopTracingHandler(BaseCallbackHandler):
     """Per-turn callback handler. Create one instance per agent turn (do not
-    reuse across turns/threads -- run_id timing state isn't cleared)."""
+    reuse across turns/threads -- run_id timing state isn't cleared).
+
+    Also accumulates token usage across every LLM call it sees for the
+    turn -- attach the SAME instance to both the main agent.invoke() and
+    refine.refine_answer() (as bridge.py already does) and usage_summary()
+    then reflects the true end-to-end cost of one user request: every
+    ReAct-loop hop (a multi-hop turn makes several separate model calls,
+    each with its own token usage) plus the refinement pass, none of which
+    rag_debug.extract_usage() captured on its own -- it only looked at the
+    last message in the agent's final result, i.e. one hop out of however
+    many actually ran, and never saw refine's call at all."""
 
     def __init__(self) -> None:
         self._starts: dict[Any, float] = {}
+        self.llm_call_count = 0
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_tokens = 0
 
     def _elapsed(self, run_id: Any) -> float | None:
         start = self._starts.pop(run_id, None)
@@ -183,6 +197,35 @@ class HopTracingHandler(BaseCallbackHandler):
         level = logging.ERROR if status == "error" else logging.INFO
         _hop_log.log(level, stage, extra={"stage": stage, "meta": meta})
 
+    @staticmethod
+    def _extract_usage(response: Any) -> dict | None:
+        """Pull token usage off an LLMResult. For chat models (this
+        project's only path) it lives on each generation's AIMessage, not
+        on response.llm_output -- Gemini leaves that dict empty."""
+        try:
+            for generation_list in response.generations:
+                for generation in generation_list:
+                    usage = getattr(getattr(generation, "message", None), "usage_metadata", None)
+                    if usage:
+                        return {
+                            "input_tokens": usage.get("input_tokens") or 0,
+                            "output_tokens": usage.get("output_tokens") or 0,
+                            "total_tokens": usage.get("total_tokens") or 0,
+                        }
+        except Exception:  # noqa: BLE001 - usage tracking must never break the actual turn
+            pass
+        return None
+
+    def usage_summary(self) -> dict:
+        """Aggregate token usage across every LLM call seen so far this
+        turn (every ReAct hop + the refine pass)."""
+        return {
+            "llm_calls": self.llm_call_count,
+            "input_tokens": self.total_input_tokens,
+            "output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
     # LLM calls: agent reasoning steps, each query-expansion variant, and
     # the refinement pass (when refine.refine_answer is given this handler).
     def on_llm_start(self, serialized, prompts, *, run_id, **kwargs):
@@ -194,7 +237,13 @@ class HopTracingHandler(BaseCallbackHandler):
         self._emit("llm_call_start")
 
     def on_llm_end(self, response, *, run_id, **kwargs):
-        self._emit("llm_call_end", elapsed_s=self._elapsed(run_id))
+        usage = self._extract_usage(response)
+        if usage:
+            self.llm_call_count += 1
+            self.total_input_tokens += usage["input_tokens"]
+            self.total_output_tokens += usage["output_tokens"]
+            self.total_tokens += usage["total_tokens"]
+        self._emit("llm_call_end", elapsed_s=self._elapsed(run_id), **(usage or {}))
 
     def on_llm_error(self, error, *, run_id, **kwargs):
         self._emit(
@@ -248,7 +297,18 @@ def limit_tool_calls(tool, max_calls: int = DEFAULT_MAX_TOOL_CALLS_PER_TURN):
     """Wrap a LangChain tool so it refuses to execute more than `max_calls`
     times per turn (keyed by trace_id_var, which bridge.py sets once per
     request). Past the cap, returns a canned message instead of invoking
-    the tool, so the model is forced to stop retrieving and answer."""
+    the tool, so the model is forced to stop retrieving and answer.
+
+    Idempotent: `tool` objects (e.g. ``vector_embed.tools``) are shared
+    module-level singletons reused across every ``build_agent()`` call, so
+    without this guard each call stacked another wrapper around the same
+    tool -- every real invocation then tripped N nested counters at once,
+    making the cap trigger sooner (and eventually immediately) the longer
+    a process ran and called ``build_agent()`` repeatedly (e.g. one call
+    per bilingual_eval.py question, or one per bridge.py chat thread)."""
+    if getattr(tool, "_ulak_call_limited", False):
+        return tool
+
     limit_message = (
         "[Search limit reached: this tool has already been called {n} times "
         "this turn. Do not call it again. Answer using only the results "
@@ -286,6 +346,7 @@ def limit_tool_calls(tool, max_calls: int = DEFAULT_MAX_TOOL_CALLS_PER_TURN):
 
         tool.coroutine = limited_coroutine
 
+    tool._ulak_call_limited = True
     return tool
 
 

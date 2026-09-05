@@ -19,6 +19,7 @@ from langchain_core.utils.uuid import uuid7
 
 import agent
 import gemini_keys
+import pipeline_logging
 
 QUESTIONS = [
     {
@@ -130,6 +131,8 @@ def run_one(standard: str, language: str, question: str) -> TestResult:
     result = TestResult(standard=standard, language=language, question=question, answer="", latency_s=0, retrieved_chunks=0)
 
     for attempt in range(MAX_KEY_ROTATIONS):
+        trace_id = str(uuid7())
+        pipeline_logging.trace_id_var.set(trace_id)
         try:
             a = agent.build_agent()
             config = {"configurable": {"thread_id": str(uuid7())}}
@@ -162,6 +165,8 @@ def run_one(standard: str, language: str, question: str) -> TestResult:
                 gemini_keys.invalidate("chat")
                 continue
             result.error = str(e)[:300]
+        finally:
+            pipeline_logging.clear_tool_call_counts(trace_id)
             return result
     return result
 

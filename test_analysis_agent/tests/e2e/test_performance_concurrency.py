@@ -65,7 +65,7 @@ class TestConcurrentChatRequests:
         # get_thread_agent normally builds/caches one agent per thread_id;
         # patch it directly so every thread deterministically gets its own
         # distinguishable mock without touching vector_embed/download logic.
-        def _fake_get_thread_agent(thread_id, _files, _base_agent):
+        def _fake_get_thread_agent(thread_id, _files, _base_agent, **_kwargs):
             return _mock_agent_for_thread(thread_id), {"files_indexed": [], "failed_files": [], "chunk_count": 0}
 
         transport = httpx.ASGITransport(app=bridge.app)
@@ -101,7 +101,7 @@ class TestConcurrentChatRequests:
     async def test_concurrent_requests_all_succeed(self, app_ready):
         import bridge
 
-        def _fake_get_thread_agent(thread_id, _files, _base_agent):
+        def _fake_get_thread_agent(thread_id, _files, _base_agent, **_kwargs):
             return _mock_agent_for_thread(thread_id), {"files_indexed": [], "failed_files": [], "chunk_count": 0}
 
         transport = httpx.ASGITransport(app=bridge.app)
@@ -138,7 +138,7 @@ class TestHeartbeatBehavior:
 
         slow_agent.invoke.side_effect = _slow_invoke
 
-        def _fake_get_thread_agent(thread_id, _files, _base_agent):
+        def _fake_get_thread_agent(thread_id, _files, _base_agent, **_kwargs):
             return slow_agent, {"files_indexed": [], "failed_files": [], "chunk_count": 0}
 
         transport = httpx.ASGITransport(app=bridge.app)
@@ -166,7 +166,7 @@ class TestSequentialThroughput:
 
         bridge = app_ready
 
-        def _fake_get_thread_agent(thread_id, _files, _base_agent):
+        def _fake_get_thread_agent(thread_id, _files, _base_agent, **_kwargs):
             return _mock_agent_for_thread(thread_id), {"files_indexed": [], "failed_files": [], "chunk_count": 0}
 
         client = TestClient(bridge.app, raise_server_exceptions=False)

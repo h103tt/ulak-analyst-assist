@@ -40,3 +40,6 @@ dist-ssr
 # excluded, since those are runtime/user-specific, not shared KB content.
 test_analysis_agent/chromadb/user_collections/
 test_analysis_agent/chunk_cache/
+
+# deepeval runtime cache/results (regenerated per run, not shared state)
+test_analysis_agent/.deepeval/

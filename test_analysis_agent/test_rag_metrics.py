@@ -16,6 +16,24 @@ from deepeval import evaluate
 from deepeval.models.base_model import DeepEvalBaseEmbeddingModel
 from deepeval.synthesizer.config import ContextConstructionConfig
 
+def _text_of(content) -> str:
+    """Flatten LangChain message content to plain text. Some models return
+    content as a list of blocks instead of a plain string -- mirrors
+    refine.py's/bridge.py's helper of the same name."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text", "")
+                parts.append(text if isinstance(text, str) else str(text))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    return "" if content is None else str(content)
+
+
 def _probe_chat_key(api_key: str) -> None:
     ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", google_api_key=api_key, timeout=15.0).invoke("ping")
 
@@ -117,7 +135,7 @@ class MyAgent:
             f"Generate test cases for:\n{query}"
         )
         response = self.llm.invoke(prompt)
-        return response.content  # AIMessage → str
+        return _text_of(response.content)  # AIMessage → str
 
 
 agent = MyAgent()

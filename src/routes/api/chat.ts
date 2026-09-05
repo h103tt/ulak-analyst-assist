@@ -8,6 +8,7 @@ type ChatRequestBody = {
   context?: unknown;
   trigger?: unknown;
   messageId?: unknown;
+  useQueryExpansion?: unknown;
 };
 
 const AGENT_URL = process.env["AGENT_BASE_URL"] ?? "http://127.0.0.1:8010";
@@ -49,6 +50,7 @@ export const Route = createFileRoute("/api/chat")({
         }//checks whether the request made my someone authorized or not
 
         const contextText = typeof body.context === "string" ? body.context.slice(0, 60000) : "";
+        const useQueryExpansion = body.useQueryExpansion === true;
         const agentMessages = (body.messages as UIMessage[])
           .map((message) => ({
             role: message.role,
@@ -99,6 +101,7 @@ export const Route = createFileRoute("/api/chat")({
               context: contextText,
               thread_id: threadId || "default",
               files,
+              use_query_expansion: useQueryExpansion,
             }),
             signal: request.signal,
           });

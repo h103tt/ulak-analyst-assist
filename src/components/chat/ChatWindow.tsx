@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Paperclip, X } from "lucide-react";
+import { FileText, Loader2, Paperclip, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Conversation,
@@ -12,12 +12,15 @@ import {
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import {
   PromptInput,
+  PromptInputButton,
   PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
+  PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildAttachmentContext,
@@ -86,6 +89,11 @@ function ChatWindowInner({ threadId, threadTitle, initialMessages, savedIds }: {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [input, setInput] = useState("");
+  const [thinkingMode, setThinkingMode] = useState(false);
+  const thinkingModeRef = useRef(thinkingMode);
+  useEffect(() => {
+    thinkingModeRef.current = thinkingMode;
+  }, [thinkingMode]);
 
   const attachments = useQuery({
     queryKey: ["attachments", threadId],
@@ -109,7 +117,7 @@ function ChatWindowInner({ threadId, threadTitle, initialMessages, savedIds }: {
           const { data } = await supabase.auth.getSession();
           return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
         },
-        body: () => ({ context: contextRef.current }),
+        body: () => ({ context: contextRef.current, useQueryExpansion: thinkingModeRef.current }),
       }),
     [],
   );
@@ -311,7 +319,21 @@ function ChatWindowInner({ threadId, threadTitle, initialMessages, savedIds }: {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about defects, coverage, logs or release risk…"
             />
-            <PromptInputFooter className="justify-end">
+            <PromptInputFooter className="justify-between">
+              <PromptInputTools>
+                <TooltipProvider>
+                  <PromptInputButton
+                    variant={thinkingMode ? "default" : "ghost"}
+                    onClick={() => setThinkingMode((v) => !v)}
+                    tooltip={{
+                      content:
+                        "Derinlemesine analiz: soruyu birden fazla açıdan arayıp daha kapsamlı yanıt üretir (daha yavaş, daha maliyetli).",
+                    }}
+                  >
+                    <Sparkles className="size-4" />
+                  </PromptInputButton>
+                </TooltipProvider>
+              </PromptInputTools>
               <PromptInputSubmit status={status} disabled={busy || input.trim().length === 0} />
             </PromptInputFooter>
           </PromptInput>

@@ -4,6 +4,7 @@ import os
 import re
 import time
 import logging
+from typing import Any
 
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,6 +14,10 @@ from langchain_community.document_loaders import TextLoader, CSVLoader
 from langchain_core.documents import Document
 from langchain_core.tools import create_retriever_tool
 from langchain_core.tools import tool
+from langchain_core.prompts import PromptTemplate
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_community.retrievers import BM25Retriever
 from langchain_docling.loader import DoclingLoader
 from langchain_docling.loader import ExportType
 from docling.chunking import HybridChunker
@@ -22,6 +27,7 @@ from transformers import AutoTokenizer
 from langchain_community.vectorstores.utils import filter_complex_metadata
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_classic.retrievers.document_compressors.cross_encoder_rerank import CrossEncoderReranker
+from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 
 import debug_artifacts
@@ -29,7 +35,6 @@ import gemini_keys
 import rag_debug
 import retrieval_debug
 from rag_debug import C, _c, field, section, status
-import agent
 
 log = logging.getLogger("vector_embed")
 
@@ -88,7 +93,35 @@ def build_embeddings(api_key: str | None = None) -> GoogleGenerativeAIEmbeddings
 
 embeddings = build_embeddings()  # embedding model (loosely fetches the top 15-20 relevant chunks)
 reranker_model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")  # reranker(keeps the top 5 most relevant docs after reranking)
-compressor = CrossEncoderReranker(model=reranker_model, top_n=3)
+
+
+class ScoredCrossEncoderReranker(CrossEncoderReranker):
+    """Same as CrossEncoderReranker but preserves each kept document's
+    cross-encoder relevance score in metadata['rerank_score'] so it can be
+    shown to the LLM (via retriever_tool's document_prompt) instead of being
+    thrown away -- upstream CrossEncoderReranker.compress_documents() computes
+    it just to sort by it, then discards it before returning."""
+
+    def compress_documents(self, documents, query, callbacks=None):
+        scores = self.model.score([(query, doc.page_content) for doc in documents])
+        docs_with_scores = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
+        kept = []
+        for doc, score in docs_with_scores[: self.top_n]:
+            doc.metadata["rerank_score"] = round(float(score), 3)
+            kept.append(doc)
+        return kept
+
+
+compressor = ScoredCrossEncoderReranker(model=reranker_model, top_n=3)
+
+# Renders a retrieved chunk plus its rerank score for the LLM -- higher score
+# means the cross-encoder found the chunk more topically relevant to the
+# query; a chunk with a markedly lower score than its siblings (e.g. the
+# weakest of the top 3) is a weaker match the model was still handed and
+# should treat with more caution.
+retriever_document_prompt = PromptTemplate.from_template(
+    "{page_content}\n[relevance score: {rerank_score}]"
+)
 
 
 ###############--------KNOWLEDGE BASE DOCS----------###########
@@ -98,18 +131,44 @@ DOCS = [
     ("Requirements_and_quality",   "15288-2023-2.pdf",              "15288-2023-2"),
     ("Requirements_and_quality",   "29119-1-2022.pdf",              "29119-1-2022"),
     ("Requirements_and_quality",   "requirements_and_testing.md",   "requirements_and_testing"),
+    ("Requirements_and_quality",   "IEEE-Test-Doc-829-2008.pdf",    "IEEE-Test-Doc-829-2008"),
     ("Security_and_safety",        "MIL-STD-882E.pdf",              "MIL-STD-882E"),
     ("Security_and_safety",        "SP800-53_REV-3.PDF",            "SP800-53_REV-3"),
 ]
 # NOTE: MIL-STD-810H_CHG-1.pdf, 830-1998.pdf, 29148-2018.pdf, ISO-9001-2015.pdf,
-# RTCA-DO-160G.pdf, and IEEE-Test-Doc-829-2008.pdf were removed from
-# knowledge_base/ (the latter moved to knowledge_base_excluded/ -- kept out of
-# scope deliberately, not deleted). Re-add an entry here (with the file
-# restored under knowledge_base/<category>/) if any of them come back into scope.
+# and RTCA-DO-160G.pdf remain out of scope (never added to knowledge_base/).
+# IEEE-Test-Doc-829-2008.pdf was restored from knowledge_base_excluded/ on
+# 2026-09-04 -- re-add an entry here (with the file under
+# knowledge_base/<category>/) if any of the others come back into scope.
 
 DOC_METADATA_LOOKUP = {
     filename: {"category": category, "standard": standard_label}
     for category, filename, standard_label in DOCS
+}
+
+# Per-file chunk size override (HybridChunker max_tokens) -- infrastructure
+# only. Every entry defaults to the standard 512 tokens/chunk (see
+# process_single_file); nothing here overrides that yet because no data
+# (e.g. _chunk_stats output showing a standard's chunks running too
+# large/small) justifies a specific value for any one file. Add a
+# "filename.pdf": <int> entry here once such evidence exists, then rerun
+# `kb_ingest.py parse` + `embed` for that file.
+DOC_CHUNK_MAX_TOKENS: dict[str, int] = {}
+
+# Official revision/publication date per standard (by standard label, as
+# shown in DOC_METADATA_LOOKUP[...]["standard"]), surfaced to the LLM via
+# each chunk's <chunk revision_date="..."> attribute so it can flag stale
+# standards in its answers. Sourced from each PDF's own title/foreword page;
+# cross-checked on the web where the scanned copy's extractable text layer
+# turned out to be watermark-only (MIL-STD-461).
+DOC_REVISION_DATE = {
+    "MIL-STD-461": "1967-07-31",    # original, unlettered -- MIL-STD-461G (2015) is the current revision
+    "MIL-STD-1586A": "1989-06-15",  # Revision A
+    "15288-2023-2": "2023-05",      # ISO/IEC/IEEE 15288:2023, 2nd edition
+    "29119-1-2022": "2022-01",      # ISO/IEC/IEEE 29119-1:2022, 2nd edition
+    "MIL-STD-882E": "2012-05-11",   # Revision E
+    "SP800-53_REV-3": "2009-08",    # NIST SP 800-53 Revision 3
+    "IEEE-Test-Doc-829-2008": "2008-07-18",  # per the PDF's own title page (IEEE-SA board approval was 2008-03-27)
 }
 
 
@@ -123,18 +182,34 @@ hf_tokenizer = HuggingFaceTokenizer(
 ################-------docling loader for single file-------########
 _DOC_CONVERTER = None
 
-def build_expanded_retriever(base_vector_store: Chroma, k: int, search_type: str = "mmr"):
-    """Reranked retriever (build_reranking_retriever) wrapped in query
-    expansion/reformulation: the shared local LLM generates a couple of
-    alternate phrasings of the query, each is retrieved+reranked separately,
-    and the results are merged and de-duplicated. Improves recall on
-    ambiguous or oddly-phrased questions at the cost of a few extra (local,
-    already-loaded-model) LLM calls per turn."""
-    reranked_retriever = build_reranking_retriever(base_vector_store, k, search_type=search_type)
-    return MultiQueryRetriever.from_llm(
+def build_expanded_retriever(base_vector_store: Chroma, k: int, search_type: str = "mmr", llm=None):
+    """Reranked retriever wrapped in LLM-driven query expansion ("RAG
+    Fusion"): the given ``llm`` generates a few alternate phrasings of the
+    query, each is retrieved+reranked separately, and the per-query ranked
+    results are fused with Reciprocal Rank Fusion (see RAGFusionRetriever)
+    rather than a naive merge-and-dedupe. Distinct from the system prompt's
+    inline query REFORMULATION (which resolves conversational
+    context/pronouns before a query ever reaches this retriever) -- this
+    adds lexical/semantic phrasing diversity on top, at the cost of one
+    extra LLM call per retrieval.
+
+    ``llm`` MUST be passed in rather than resolved here via
+    ``agent.get_llm()``: agent.py imports this module (vector_embed.py has
+    no reason to import agent.py back -- doing so previously created a
+    circular import; a module-level call to agent.get_llm() from in here
+    would hit a half-initialized ``agent`` module and crash the app at
+    startup). Calling this function only ever happens at agent-build time
+    (agent.build_agent()), well after both modules have finished
+    importing, which is exactly why the caller must supply ``llm``."""
+    base_retriever = base_vector_store.as_retriever(search_type=search_type, search_kwargs={"k": k})
+    reranked_retriever = retrieval_debug.logged_compression_retriever(
+        base_retriever, compressor, tag="expanded_search"
+    )
+    return RAGFusionRetriever.from_llm(
         retriever=reranked_retriever,
-        llm=agent.get_llm(),
+        llm=llm,
         include_original=True,
+        fusion_k=k,
     )
 
 
@@ -244,12 +319,16 @@ def process_single_file(path: Path):
         loader = DoclingLoader(
             file_path=str(path),
             export_type=ExportType.DOC_CHUNKS,
-            chunker=HybridChunker(tokenizer=hf_tokenizer, max_tokens=512),
+            chunker=HybridChunker(
+                tokenizer=hf_tokenizer,
+                max_tokens=DOC_CHUNK_MAX_TOKENS.get(path.name, 512),
+            ),
         )
         docs = loader.load()
 
         file_info = DOC_METADATA_LOOKUP.get(path.name, {})
         stem = re.sub(r"[^A-Za-z0-9]+", "-", path.stem).strip("-")
+        ingested_at = time.strftime("%Y-%m-%d")
 
         for i, doc in enumerate(docs):
             doc.metadata["source_file"] = path.name
@@ -261,16 +340,21 @@ def process_single_file(path: Path):
             section = _extract_section(doc.metadata)
             page = _extract_page(doc.metadata)
             tag = f"{stem}-{i+1:03d}"
+            revision_date = DOC_REVISION_DATE.get(doc.metadata.get("standard", ""), "")
             doc.id = tag
             doc.metadata["citation_tag"] = tag
             doc.metadata["section"] = section
             doc.metadata["page"] = page
+            doc.metadata["revision_date"] = revision_date
+            doc.metadata["ingested_at"] = ingested_at
             doc.page_content = (
                 f'<chunk id="{tag}" source="{path.name}" '
                 f'standard="{doc.metadata.get("standard", "")}" '
                 f'category="{doc.metadata.get("category", "")}" '
                 f'section="{section or ""}" '
-                f'page="{page or ""}">'
+                f'page="{page or ""}" '
+                f'revision_date="{revision_date}" '
+                f'ingested_at="{ingested_at}">'
                 f"{doc.page_content}</chunk>"
             )
 
@@ -477,7 +561,186 @@ if __name__ == "__main__":
 
 
 ########--------retrieval of the related chunks----------###########
-retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 20})
+_RRF_K = 60  # standard reciprocal-rank-fusion smoothing constant
+
+
+def _load_all_docs_from_store(store) -> list[Document]:
+    """Fetch every document currently in ``store`` (used to build the sparse
+    BM25 index over the same corpus the dense retriever searches). Retries
+    once with an explicit ``limit`` if the plain ``get()`` call fails (some
+    Chroma versions need it for large collections -- same pattern as
+    kb_ingest.py's ``_collection_state()``); gives up and returns []
+    rather than blocking retrieval on a store that's temporarily unhappy."""
+    try:
+        result = store.get(include=["documents", "metadatas"])
+    except Exception:  # noqa: BLE001 - fall through to a bounded retry
+        try:
+            result = store.get(limit=20000, include=["documents", "metadatas"])
+        except Exception:  # noqa: BLE001 - give up, hybrid degrades to dense-only
+            return []
+
+    docs: list[Document] = []
+    texts = result.get("documents") or []
+    metadatas = result.get("metadatas") or []
+    for text, meta in zip(texts, metadatas):
+        if text is None:
+            continue
+        docs.append(Document(page_content=text, metadata=meta or {}))
+    return docs
+
+
+class HybridRetriever(BaseRetriever):
+    """Dense (vector) + sparse (BM25) retrieval fused with Reciprocal Rank
+    Fusion. Each channel is queried independently and safely (a failing
+    channel contributes nothing rather than breaking the whole call); docs
+    present in both channels rank above docs seen in only one, weighted by
+    ``weights`` = (dense_weight, sparse_weight)."""
+
+    dense_retriever: Any
+    sparse_retriever: Any = None
+    k: int = 10
+    weights: tuple[float, float] = (0.5, 0.5)
+
+    @staticmethod
+    def _doc_key(doc: Document) -> str:
+        """Identity used to de-duplicate/match a doc across both channels --
+        prefers the stable citation tag, then a generic id, then source
+        file, falling back to full content for docs with no metadata at all."""
+        meta = doc.metadata or {}
+        if meta.get("citation_tag"):
+            return f"citation_tag:{meta['citation_tag']}"
+        if meta.get("id"):
+            return f"id:{meta['id']}"
+        if meta.get("source_file"):
+            return f"source_file:{meta['source_file']}"
+        return f"content:{doc.page_content}"
+
+    def _safe_invoke(self, retriever, query: str) -> list[Document]:
+        if retriever is None:
+            return []
+        try:
+            return list(retriever.invoke(query))
+        except Exception:  # noqa: BLE001 - one channel failing must not sink retrieval
+            return []
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> list[Document]:
+        dense_docs = self._safe_invoke(self.dense_retriever, query)
+        if self.sparse_retriever is None:
+            return dense_docs[: self.k]
+        sparse_docs = self._safe_invoke(self.sparse_retriever, query)
+
+        dense_weight, sparse_weight = self.weights
+        scores: dict[str, float] = {}
+        by_key: dict[str, Document] = {}
+        for rank, doc in enumerate(dense_docs, start=1):
+            key = self._doc_key(doc)
+            by_key[key] = doc
+            scores[key] = scores.get(key, 0.0) + dense_weight / (_RRF_K + rank)
+        for rank, doc in enumerate(sparse_docs, start=1):
+            key = self._doc_key(doc)
+            by_key.setdefault(key, doc)
+            scores[key] = scores.get(key, 0.0) + sparse_weight / (_RRF_K + rank)
+
+        ranked_keys = sorted(scores, key=lambda k_: scores[k_], reverse=True)
+        return [by_key[k_] for k_ in ranked_keys[: self.k]]
+
+
+class RAGFusionRetriever(MultiQueryRetriever):
+    """RAG-Fusion: same LLM-driven query-variant generation as
+    MultiQueryRetriever, but fuses each variant's ranked results with
+    Reciprocal Rank Fusion instead of a flat merge-and-dedupe (LangChain's
+    default ``unique_union``) -- a document that ranks well across several
+    phrasings outranks one that only appears once, which a naive union
+    can't express. Reuses HybridRetriever's ``_doc_key`` identity and the
+    same ``_RRF_K`` smoothing constant as the dense+sparse hybrid fusion,
+    so RRF behaves consistently everywhere it's used in this codebase."""
+
+    fusion_k: int = 20
+
+    @classmethod
+    def from_llm(
+        cls,
+        retriever: BaseRetriever,
+        llm,
+        prompt: PromptTemplate | None = None,
+        include_original: bool = False,
+        fusion_k: int = 20,
+    ) -> "RAGFusionRetriever":
+        from langchain_classic.retrievers.multi_query import (
+            DEFAULT_QUERY_PROMPT,
+            LineListOutputParser,
+        )
+
+        output_parser = LineListOutputParser()
+        llm_chain = (prompt or DEFAULT_QUERY_PROMPT) | llm | output_parser
+        return cls(
+            retriever=retriever,
+            llm_chain=llm_chain,
+            include_original=include_original,
+            fusion_k=fusion_k,
+        )
+
+    def retrieve_documents(self, queries: list[str], run_manager) -> list[list[Document]]:
+        """One ranked result list per query variant -- kept separate
+        (unlike the base class, which flattens into one list here) so
+        ``unique_union`` can fuse by per-query rank instead of just
+        deduping."""
+        return [
+            self.retriever.invoke(query, config={"callbacks": run_manager.get_child()})
+            for query in queries
+        ]
+
+    async def aretrieve_documents(self, queries: list[str], run_manager) -> list[list[Document]]:
+        import asyncio
+
+        return list(
+            await asyncio.gather(
+                *(
+                    self.retriever.ainvoke(query, config={"callbacks": run_manager.get_child()})
+                    for query in queries
+                )
+            )
+        )
+
+    def unique_union(self, documents: list[list[Document]]) -> list[Document]:
+        """RRF fusion across the per-query ranked lists (overrides the
+        base class's flat dedupe -- despite the name, ``documents`` here is
+        a list of ranked lists, matching what retrieve_documents/
+        aretrieve_documents above now produce)."""
+        scores: dict[str, float] = {}
+        by_key: dict[str, Document] = {}
+        for doc_list in documents:
+            for rank, doc in enumerate(doc_list, start=1):
+                key = HybridRetriever._doc_key(doc)
+                by_key.setdefault(key, doc)
+                scores[key] = scores.get(key, 0.0) + 1.0 / (_RRF_K + rank)
+        ranked_keys = sorted(scores, key=lambda k_: scores[k_], reverse=True)
+        return [by_key[k_] for k_ in ranked_keys[: self.fusion_k]]
+
+
+def build_hybrid_retriever(store, k: int, vector_search_type: str = "similarity"):
+    """Dense-only when the corpus is empty or rank_bm25/BM25Retriever isn't
+    usable (matches pre-hybrid behaviour exactly); otherwise wraps dense +
+    BM25 in a HybridRetriever. Call once at module load, not per-query --
+    BM25Retriever.from_documents() re-tokenizes the whole corpus."""
+    dense = store.as_retriever(search_type=vector_search_type, search_kwargs={"k": k})
+    docs = _load_all_docs_from_store(store)
+    if not docs:
+        return dense
+    try:
+        sparse = BM25Retriever.from_documents(docs)
+        sparse.k = k
+    except ImportError:
+        return dense
+    return HybridRetriever(dense_retriever=dense, sparse_retriever=sparse, k=k)
+
+
+# Same corpus the dense-only MMR retriever searched, now fused with a BM25
+# sparse channel (falls back to plain MMR if the KB is empty or rank_bm25
+# is unavailable -- see build_hybrid_retriever).
+retriever = build_hybrid_retriever(vector_store, k=20, vector_search_type="mmr")
 
 # Logged retriever: same base MMR retriever + reranker, but every query logs
 # candidates, distances, pass/filter verdicts and the final context.
@@ -494,12 +757,21 @@ retriever_tool = create_retriever_tool(
         "structure, process groups, definitions, or requirements of a standard — not "
         "just when generating test cases.\n\n"
         "Each result is wrapped in a <chunk id=\"...\" source=\"...\" standard=\"...\" "
-        "category=\"...\" section=\"...\" page=\"...\"> tag. When citing information, "
+        "category=\"...\" section=\"...\" page=\"...\" revision_date=\"...\" "
+        "ingested_at=\"...\"> tag, followed by a \"[relevance score: N]\" line — higher "
+        "means the reranker found the chunk more topically relevant to your query; if "
+        "the weakest of the returned chunks scores noticeably lower than the others, "
+        "treat it with more caution rather than citing it as confidently. "
+        "revision_date is the standard's own official publication/revision date (not "
+        "when it was added to this system) — if it is old relative to the question, or "
+        "an answer spans standards with very different revision_dates, say so rather "
+        "than presenting them as equally current. When citing information, "
         "cite it in human-readable form as \"(standard, Section X)\" or "
         "\"(standard, p. N)\" — e.g. (MIL-STD-461, Section 4.1.3) — using only the "
         "standard/section/page values that appeared in a chunk you actually "
         "retrieved. Never invent, guess, or reuse a section, clause, or page that "
-        "was not present in the retrieved text. Do not cite the internal chunk id.\n\n"
+        "was not present in the retrieved text. Do not cite the internal chunk id or "
+        "relevance score.\n\n"
         "Categories available:\n"
         "- Environmental_and_hardware (MIL-STD environmental and hardware qualification standards)\n"
         "- Requirements_and_quality (systems lifecycle, requirements engineering, and quality standards)\n"
@@ -507,6 +779,7 @@ retriever_tool = create_retriever_tool(
         "Always call this tool before answering any question about standard content, "
         "and before generating test cases or validating a requirement."
         ),
+    document_prompt=retriever_document_prompt,
 )
 
 
@@ -817,15 +1090,19 @@ def build_session_retriever_tool(
             "uploaded document's content, and before generating test cases or "
             "validating a requirement against it.\n\n"
             "Each result is wrapped in a <chunk id=\"...\" source=\"...\" "
-            "section=\"...\" page=\"...\"> tag. When citing information, cite it in "
+            "section=\"...\" page=\"...\"> tag, followed by a \"[relevance score: N]\" "
+            "line — higher means a more relevant match; treat a markedly lower-scoring "
+            "chunk with more caution. When citing information, cite it in "
             "human-readable form as \"(filename, Section X)\" or \"(filename, p. N)\" "
             "using only the source/section/page values that appeared in a chunk you "
             "actually retrieved — never invent, guess, or reuse a section or page "
             "that was not present in the retrieved text. Do not cite the internal "
-            "chunk id. If section or page is missing, cite by filename alone. If a "
-            "claim isn't backed by a chunk you retrieved, say the document does not "
-            "specify it rather than answering from assumption or general knowledge."
+            "chunk id or relevance score. If section or page is missing, cite by "
+            "filename alone. If a claim isn't backed by a chunk you retrieved, say "
+            "the document does not specify it rather than answering from assumption "
+            "or general knowledge."
         ),
+        document_prompt=retriever_document_prompt,
     )
 
     report = {

@@ -171,19 +171,6 @@ def log_prompt_assembled(
 
 
 # ------------------------------------------------------------ generation --
-def extract_usage(messages: list) -> dict | None:
-    """Pull token usage off the last message that carries usage_metadata."""
-    for message in reversed(messages):
-        usage = getattr(message, "usage_metadata", None)
-        if usage:
-            return {
-                "input_tokens": usage.get("input_tokens"),
-                "output_tokens": usage.get("output_tokens"),
-                "total_tokens": usage.get("total_tokens"),
-            }
-    return None
-
-
 def log_generation(
     model: str,
     latency_s: float,
@@ -196,6 +183,7 @@ def log_generation(
     field("total_latency_s", round(latency_s, 3))
     field("time_to_first_token_s", ttft_s if ttft_s is not None else "n/a (non-streaming)")
     if usage:
+        field("llm_calls", usage.get("llm_calls"))
         field("input_tokens", usage.get("input_tokens"))
         field("output_tokens", usage.get("output_tokens"))
         field("total_tokens", usage.get("total_tokens"))

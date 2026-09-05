@@ -62,6 +62,38 @@ _working_key_cache: dict[str, str] = {}
 _bad_keys: dict[str, set[str]] = {}
 
 
+def is_key_error(e: Exception) -> bool:
+    """True if ``e`` looks like a per-key failure worth rotating away from:
+    quota exhaustion (429/RESOURCE_EXHAUSTED) or an outright invalid/revoked
+    key (400 API_KEY_INVALID). A key that passes the initial probe can still
+    fail later this way -- restricted API scopes, per-minute limits, or a
+    key going bad mid-session all surface as one of these two error shapes."""
+    msg = str(e)
+    return (
+        "RESOURCE_EXHAUSTED" in msg
+        or "429" in msg
+        or "API_KEY_INVALID" in msg
+        or "API key not valid" in msg
+    )
+
+
+def is_model_unavailable_error(e: Exception) -> bool:
+    """True if ``e`` looks like a model-wide outage rather than a per-key
+    problem: Gemini's 'high demand' 503, a 504 timeout, or a generic
+    UNAVAILABLE/ServerError. Every key hits the same overloaded model in
+    this case, so rotating keys is pointless -- the caller should skip
+    straight to the next model in MODEL_CHAIN instead of burning key-
+    rotation attempts on a problem no key can fix."""
+    msg = str(e)
+    return (
+        "UNAVAILABLE" in msg
+        or "high demand" in msg
+        or "DEADLINE_EXCEEDED" in msg
+        or " 503" in msg
+        or " 504" in msg
+    )
+
+
 def invalidate(purpose: str) -> None:
     """Drop the cached key for ``purpose`` and remember it as bad, so the
     next ``working_key()`` call skips it instead of re-probing and picking

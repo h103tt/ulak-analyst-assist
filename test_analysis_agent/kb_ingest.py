@@ -43,7 +43,7 @@ import vector_embed as ve
 
 CHUNK_CACHE_DIR = os.path.join(ve.AGENT_DIR, "chunk_cache")
 SLOW_FILES = {"MIL-STD-1586A.pdf", "MIL-STD-882E.pdf"}  # OCR-heavy: process one at a time
-KB_EXTENSIONS = (".pdf", ".docx", ".xlsx", ".xls")
+KB_EXTENSIONS = (".pdf", ".docx", ".xlsx", ".xls", ".md")
 
 
 def _kb_files() -> list[Path]:
@@ -207,17 +207,23 @@ def cmd_embed() -> None:
         raise EnvironmentError("No usable Gemini API keys (see gemini_keys.py).")
 
     in_chroma = _collection_state()
-    plan: list[tuple[str, dict, set[str]]] = []
+    plan: list[tuple[str, dict, list[Document]]] = []
     for path in _kb_files():
         cache = _read_cache(path.name)
         if cache is None:
             print(f"[{path.name}] not parsed yet, skipping (run `parse` first)", flush=True)
             continue
         have_ids = in_chroma.get(path.name, set())
-        if cache["total_chunks"] - len(have_ids) > 0:
-            plan.append((path.name, cache, have_ids))
+        # Always resolve via _missing_documents rather than gating on a chunk-count
+        # diff: a re-parse that keeps the same chunk ids/count but changes
+        # page_content (e.g. new metadata baked into the <chunk> tag text) would
+        # otherwise never be detected here, and the stale text would silently stay
+        # in Chroma forever.
+        docs = _missing_documents(path.name, cache, have_ids)
+        if docs:
+            plan.append((path.name, cache, docs))
     # Bank whole files early under a hard quota ceiling.
-    plan.sort(key=lambda item: item[1]["total_chunks"] - len(item[2]))
+    plan.sort(key=lambda item: len(item[2]))
 
     if not plan:
         print("Nothing to embed -- every parsed file is already fully in Chroma.", flush=True)
@@ -227,8 +233,7 @@ def cmd_embed() -> None:
     ve.use_api_key(keys[key_idx])
     run_total = 0
 
-    for file_name, cache, have_ids in plan:
-        docs = _missing_documents(file_name, cache, have_ids)
+    for file_name, cache, docs in plan:
         if not docs:
             continue
         print(f"\n--- {file_name}: embedding {len(docs)} chunk(s) ---", flush=True)

@@ -54,6 +54,7 @@ class ChatRequestBody(BaseModel):
     context: str = ""
     thread_id: str = "default"
     files: list[UploadedFile] = Field(default_factory=list)
+    use_query_expansion: bool = False
 
 
 @dataclass
@@ -229,19 +230,22 @@ def download_file(attachment_id: str, url: str, file_name: str) -> Path:
 
 
 def get_thread_agent(
-    thread_id: str, files: list[UploadedFile], base_agent
+    thread_id: str,
+    files: list[UploadedFile],
+    base_agent,
+    use_query_expansion: bool = False,
 ) -> tuple[object, dict]:
     """Return the cached per-thread agent and its ingest report, rebuilding
-    when the uploaded file set changes. Each thread gets its own
-    InMemorySaver (conversation memory) and its own persistent Chroma
-    collection (file memory, named after the thread id).
+    when the uploaded file set (or the query-expansion toggle) changes. Each
+    thread gets its own InMemorySaver (conversation memory) and its own
+    persistent Chroma collection (file memory, named after the thread id).
 
     Partial failures are NOT swallowed silently: the returned ingest
     report carries ``failed_files`` / ``error`` so /chat can stream a warning
     to the client while still answering with whatever loaded successfully.
     """
     thread_agents: dict[str, ThreadAgentEntry] = app_state["thread_agents"]
-    signature = files_signature(files)
+    signature = f"{files_signature(files)}:qe={use_query_expansion}"
     entry = thread_agents.get(thread_id)
 
     if entry is not None and entry.signature == signature:
@@ -249,7 +253,7 @@ def get_thread_agent(
 
     if not files:
         # No uploaded files -> plain base agent with thread-scoped checkpointer.
-        no_files_agent = agent.build_agent()
+        no_files_agent = agent.build_agent(use_query_expansion=use_query_expansion)
         report = {"files_indexed": [], "failed_files": [], "chunk_count": 0}
         thread_agents[thread_id] = ThreadAgentEntry(
             agent=no_files_agent,
@@ -277,7 +281,7 @@ def get_thread_agent(
     if not downloaded:
         # Nothing could even be fetched. Fall back to a tool-less agent with a
         # poisoned signature so a retry re-attempts the download.
-        fallback_agent = agent.build_agent()
+        fallback_agent = agent.build_agent(use_query_expansion=use_query_expansion)
         report = {
             "files_indexed": [],
             "failed_files": failures,
@@ -300,7 +304,11 @@ def get_thread_agent(
         )
         ingest_report["failed_files"] = ingest_report.get("failed_files", []) + failures
         thread_tools = list(vector_embed.tools) + [session_tool]
-        thread_agent = agent.build_agent(tools=thread_tools, has_user_document=True)
+        thread_agent = agent.build_agent(
+            tools=thread_tools,
+            has_user_document=True,
+            use_query_expansion=use_query_expansion,
+        )
         thread_agents[thread_id] = ThreadAgentEntry(
             agent=thread_agent,
             signature=signature,
@@ -316,7 +324,7 @@ def get_thread_agent(
         # The cached signature is poisoned ("fallback:...") so a retry with the
         # same files re-attempts indexing instead of silently reusing this
         # tool-less fallback forever.
-        fallback_agent = agent.build_agent()
+        fallback_agent = agent.build_agent(use_query_expansion=use_query_expansion)
         report = {
             "files_indexed": [],
             "failed_files": failures
@@ -395,12 +403,15 @@ def _compute_answer_sync(
     # don't propagate to answer_stream.
     try:
         last_user_text = extract_question(user_messages)
+        turn_usage = hop_handler.usage_summary()
         rag_debug.log_generation(
-            agent.MODEL_NAME,
+            agent.current_model_name(),
             time.perf_counter() - started,
             answer,
-            usage=rag_debug.extract_usage(result.get("messages", [])),
+            usage=turn_usage,
         )
+        if trace_id:
+            add_stage(trace_id, "turn_usage_summary", status="ok", **turn_usage)
         rag_debug.log_prompt_assembled(
             thread_id,
             agent.get_system_prompt(has_user_document=has_user_document),
@@ -643,7 +654,9 @@ async def chat(body: ChatRequestBody):
         )
 
     trace_id = create_run(body.thread_id, "chat")
-    agent_instance, ingest_report = get_thread_agent(body.thread_id, body.files, base_agent)
+    agent_instance, ingest_report = get_thread_agent(
+        body.thread_id, body.files, base_agent, use_query_expansion=body.use_query_expansion
+    )
     add_stage(
         trace_id,
         "agent_prepared",
@@ -651,6 +664,7 @@ async def chat(body: ChatRequestBody):
         meta={
             "has_user_document": bool(body.files),
             "failed_files": len(ingest_report.get("failed_files", [])),
+            "use_query_expansion": body.use_query_expansion,
         },
     )
 

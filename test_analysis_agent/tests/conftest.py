@@ -83,6 +83,29 @@ if "langchain_community.vectorstores.utils" in _actually_mocked:
 import pytest
 from langchain_core.documents import Document
 
+
+# ---------------------------------------------------------------------------
+# pipeline_logging.trace_id_var is a module-level contextvars.ContextVar.
+# Any test that goes through bridge.py (create_run) or bilingual_eval-style
+# direct agent calls (trace_id_var.set(...)) leaves it holding a stale value
+# for the rest of the pytest session -- a later test that calls
+# agent.build_agent()/.invoke() WITHOUT setting its own trace_id then
+# inherits that leftover trace_id, including whatever tool-call budget
+# limit_tool_calls() already spent against it. That made agent tests fail
+# only when run as part of the full suite, not in isolation. Reset both the
+# contextvar and the per-trace_id call counters before every test so each
+# test starts with a clean slate regardless of run order.
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _reset_pipeline_logging_trace_state():
+    import pipeline_logging
+
+    token = pipeline_logging.trace_id_var.set("")
+    pipeline_logging._tool_call_counts.clear()
+    yield
+    pipeline_logging.trace_id_var.reset(token)
+    pipeline_logging._tool_call_counts.clear()
+
 # ---------------------------------------------------------------------------
 # Ensure the package root is importable
 # ---------------------------------------------------------------------------

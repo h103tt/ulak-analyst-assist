@@ -248,7 +248,7 @@ class TestModelBehaviorAndISO29119Compliance:
             context=ctx,
         )
 
-        output_text = response["messages"][-1].content
+        output_text = bridge.text_of(response["messages"][-1].content)
 
         # 1. Traceability check
         assert "REQ-DRV-042" in output_text
@@ -293,7 +293,7 @@ class TestModelBehaviorAndISO29119Compliance:
             context=ctx,
         )
 
-        output_text = response["messages"][-1].content.lower()
+        output_text = bridge.text_of(response["messages"][-1].content).lower()
 
         # Agent should identify ambiguity (e.g., missing threshold/limit or duration/timing)
         assert any(term in output_text for term in ["ambiguous", "untestable", "threshold", "limit", "missing"])

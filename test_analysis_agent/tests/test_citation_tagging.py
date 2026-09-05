@@ -60,7 +60,8 @@ requires_ollama = pytest.mark.skipif(
 def test_tag_chunks_format_and_verbatim_text():
     """_tag_chunks emits well-formed tags and never loses the original text.
 
-    Pins the correct shape ``<chunk id="<stem>-NNN" source="test.pdf">...</chunk>``.
+    Pins the correct shape
+    ``<chunk id="<stem>-NNN" source="test.pdf" section="..." page="...">...</chunk>``.
     (The id prefix comes from the filename stem, hence 'test-' for test.pdf.)
     The historical malformed-tag bug produced ``<chunk id>="..."``, which this
     full-string regex cannot match.
@@ -74,7 +75,8 @@ def test_tag_chunks_format_and_verbatim_text():
     tagged = vector_embed._tag_chunks(docs, "test.pdf")
 
     tag_re = re.compile(
-        r'^<chunk id="(?P<id>[A-Za-z0-9]+-\d{3})" source="test\.pdf">'
+        r'^<chunk id="(?P<id>[A-Za-z0-9]+-\d{3})" source="test\.pdf" '
+        r'section="[^"]*" page="[^"]*">'
         r"(?P<body>.*)</chunk>$",
         re.DOTALL,
     )
