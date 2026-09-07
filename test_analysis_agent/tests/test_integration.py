@@ -160,6 +160,23 @@ class TestUserDocumentRAGIntegration:
         assert "System Architecture" in structure
         assert "Component Diagram" in structure
 
+    def test_list_standards_metadata_includes_all_dated_standards(self):
+        """Every standard with a known revision date must appear in the tool output."""
+        result = vector_embed.list_standards_metadata.invoke({})
+        for standard, date in vector_embed.DOC_REVISION_DATE.items():
+            assert standard in result
+            assert date in result
+
+    def test_list_standards_metadata_excludes_undated_internal_doc(self):
+        """requirements_and_testing is an internal doc with no revision date and
+        must not be listed as if it were a dated external standard."""
+        result = vector_embed.list_standards_metadata.invoke({})
+        assert "requirements_and_testing" not in result
+
+    def test_list_standards_metadata_no_exception(self):
+        """Smoke test: calling the tool must never raise."""
+        vector_embed.list_standards_metadata.invoke({})
+
 
 # ===================================================================
 # 2. Multi-Tenant Session Isolation Integration

@@ -117,6 +117,23 @@ class TestSystemPrompt:
         assert "search_user_document" in full
         assert "specific to this conversation only" in full
 
+    def test_prompt_routes_staleness_questions_to_metadata_tool(self):
+        """Real get_system_prompt() output must tell the LLM to use
+        list_standards_metadata for cross-standard staleness/revision-date
+        questions, instead of relying on semantic search."""
+        import agent as agent_mod
+        prompt = agent_mod.get_system_prompt()
+        assert "list_standards_metadata" in prompt
+
+    def test_prompt_broad_question_retry_guidance(self):
+        """Real get_system_prompt() output must instruct the LLM to retry
+        with a broader/overview-reformulated query when retrieved chunks are
+        on-topic but too narrow for an aggregate/list-all question."""
+        import agent as agent_mod
+        prompt = agent_mod.get_system_prompt()
+        assert "list all" in prompt.lower()
+        assert "overview" in prompt.lower()
+
 
 # ===================================================================
 # 2. Agent Build & Configuration
@@ -142,6 +159,21 @@ class TestAgentBuild:
         agent_mod.build_agent()
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs.get("tools") is not None
+
+    def test_list_standards_metadata_registered_in_default_tools(self):
+        import vector_embed
+        assert "list_standards_metadata" in [t.name for t in vector_embed.tools]
+
+    @patch("agent.ChatGoogleGenerativeAI")
+    @patch("agent.create_agent")
+    @patch("agent.InMemorySaver")
+    def test_build_agent_default_tools_include_metadata_tool(self, mock_saver, mock_create, mock_chat):
+        mock_create.return_value = MagicMock()
+        import agent as agent_mod
+        agent_mod.build_agent()
+        call_kwargs = mock_create.call_args[1]
+        tool_names = [t.name for t in call_kwargs["tools"]]
+        assert "list_standards_metadata" in tool_names
 
     @patch("agent.ChatGoogleGenerativeAI")
     @patch("agent.create_agent")

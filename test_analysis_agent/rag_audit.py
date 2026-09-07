@@ -485,7 +485,7 @@ def judge(q: dict) -> dict:
     if q.get("error") or not q.get("actual_answer"):
         return {"consistency": 0, "faithfulness": 0, "citation_validity": 0, "verdict": "FAIL",
                 "reasoning": f"No answer returned (error: {q.get('error')})"}
-    context = "\n---\n".join(q.get("retrieved_context") or [])[:6000]
+    context = "\n---\n".join(q.get("retrieved_context") or [])[:20000]
     convo_str = "\n".join(
         f"Turn {t['turn']} USER: {t['message']}\nTurn {t['turn']} AGENT: {t.get('answer') or '(error: ' + str(t.get('error')) + ')'}"
         for t in q.get("conversation", [])
@@ -509,7 +509,11 @@ def judge(q: dict) -> dict:
 
 
 def main() -> None:
-    print(f"Running {len(QUESTIONS)} whitebox RAG audit cases against the live agent...", flush=True)
+    requested_ids = sys.argv[1:]
+    questions = (
+        [q for q in QUESTIONS if q["id"] in requested_ids] if requested_ids else QUESTIONS
+    )
+    print(f"Running {len(questions)} whitebox RAG audit cases against the live agent...", flush=True)
     with TestClient(bridge.app) as client:
         for _ in range(40):
             if client.get("/health").json().get("agent_loaded"):
@@ -517,9 +521,9 @@ def main() -> None:
             time.sleep(0.5)
 
         results = []
-        for i, q in enumerate(QUESTIONS, 1):
+        for i, q in enumerate(questions, 1):
             n_turns = len(q["turns"])
-            print(f"[{i}/{len(QUESTIONS)}] {q['id']} ({q['category']}, {n_turns} turn(s)): "
+            print(f"[{i}/{len(questions)}] {q['id']} ({q['category']}, {n_turns} turn(s)): "
                   f"{q['turns'][0][:60]}...", flush=True)
             r = run_conversation(client, q)
             pipeline_logging.trace_id_var.set(f"rag-audit-judge-{q['id']}")

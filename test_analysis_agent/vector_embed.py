@@ -1142,4 +1142,17 @@ def get_document_structure(file_name: str) -> str:
         return f"Failed to extract structure: {str(e)}"
 
 
-tools = [retriever_tool, get_document_structure]
+@tool
+def list_standards_metadata() -> str:
+    """Use this tool for any question about which standard is oldest/newest/most
+    recently revised, comparing revision dates across the whole knowledge base, or
+    listing every ingested standard's revision date. Returns the complete,
+    authoritative list directly -- do NOT use search_testing_standards for these
+    questions, since a semantic search over chunk text can miss a standard
+    entirely and is not exhaustive. Takes no arguments."""
+    lines = ["Standard: Revision/Publication Date"]
+    lines += [f"{standard}: {date}" for standard, date in DOC_REVISION_DATE.items()]
+    return "\n".join(lines)
+
+
+tools = [retriever_tool, get_document_structure, list_standards_metadata]

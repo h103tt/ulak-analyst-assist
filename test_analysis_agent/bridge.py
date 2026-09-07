@@ -175,8 +175,13 @@ CONTEXT_CHAR_BUDGET = 60000
 
 # LangGraph's default recursion_limit (25 graph steps) can be too tight for
 # multi-hop questions that need several sequential tool calls (e.g. comparing
-# two standards) -- raised so those don't get cut off mid-reasoning.
-AGENT_RECURSION_LIMIT = 10
+# two standards) -- raised so those don't get cut off mid-reasoning. This was
+# set to 10 (BELOW the 25 default, contradicting this comment) until the
+# 89-case whitebox audit's tool_budget category (BUD-001/002: "tell me what
+# 4-5 standards each require" in one turn) surfaced it as a real
+# GRAPH_RECURSION_LIMIT crash -- each standard needs its own search call plus
+# surrounding LLM decision steps, which routinely exceeds 10.
+AGENT_RECURSION_LIMIT = 30
 
 
 def truncate_context(text: str, max_chars: int = CONTEXT_CHAR_BUDGET) -> str:
