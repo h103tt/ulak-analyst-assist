@@ -148,8 +148,15 @@ def message_to_dict(message) -> dict:
             for call in tool_calls
         ]
 
+    # Debug/trace view only -- the agent itself sees the untruncated
+    # message; this cap just bounds the JSON payload size. 4000 chars was
+    # too tight: a single search_testing_standards call reranks up to 3
+    # chunks into one ToolMessage, and 4000 chars routinely cut that off
+    # mid-chunk, hiding retrieved content from /trace callers (rag_audit.py
+    # included, where it caused several judge false positives that had to
+    # be manually corrected rather than caught by the tool itself).
     content = getattr(message, "content", None)
-    item["content"] = text_of(content)[:4000]
+    item["content"] = text_of(content)[:20000]
     return item
 
 
