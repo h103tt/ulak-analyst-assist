@@ -24,8 +24,8 @@
       "question": "What kind of equipment does MIL-STD-1586A apply to and what does it cover?",
       "expected_category": "Environmental_and_hardware",
       "expected_standard": "MIL-STD-1586A",
-      "expected_answer": "MIL-STD-1586A covers airborne electronic equipment configuration/qualification guidance, addressing environmental and physical requirements applicable to airborne hardware.",
-      "must_mention": ["airborne", "equipment"]
+      "expected_answer": "MIL-STD-1586A specifies quality program requirements for acquisition contracts covering space vehicles, upper stage vehicles, payloads, and launch vehicles -- it is not normally used for other equipment such as ground equipment.",
+      "must_mention": ["space vehicle", "quality"]
     },
     {
       "id": "GQ-003",
