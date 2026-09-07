@@ -495,17 +495,23 @@ def judge(q: dict) -> dict:
         context=context or "(no retrieval -- tool was never called this turn)",
     )
     llm = agent.get_llm()
-    raw = llm.invoke(prompt)
-    text = raw.content if isinstance(raw.content, str) else " ".join(
-        c.get("text", "") if isinstance(c, dict) else str(c) for c in raw.content
-    )
-    text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
-    try:
-        result = json.loads(text)
-    except json.JSONDecodeError:
-        result = {"consistency": 0, "faithfulness": 0, "citation_validity": 0, "verdict": "FAIL",
-                  "reasoning": f"Judge returned unparseable output: {text[:200]!r}"}
-    return result
+    # The judge is itself an LLM and occasionally emits truncated/malformed
+    # JSON. Scoring that as a hard FAIL blames the agent for the judge's own
+    # infrastructure hiccup and shows up as a phantom regression in the run
+    # summary (seen on OCR-005), so give it one clean retry before giving up.
+    text = ""
+    for attempt in range(2):
+        raw = llm.invoke(prompt)
+        text = raw.content if isinstance(raw.content, str) else " ".join(
+            c.get("text", "") if isinstance(c, dict) else str(c) for c in raw.content
+        )
+        text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            continue
+    return {"consistency": 0, "faithfulness": 0, "citation_validity": 0, "verdict": "FAIL",
+            "reasoning": f"Judge returned unparseable output twice: {text[:200]!r}"}
 
 
 def main() -> None:

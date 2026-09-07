@@ -102,7 +102,21 @@ class TestContextRetrievalLive:
 class TestRetrievalQualityMetrics:
     """deepeval ContextualRecall/Precision against the real retriever.
     Skips gracefully if the judge model isn't pulled -- this is an opt-in,
-    higher-cost quality gate, not a smoke test."""
+    higher-cost quality gate, not a smoke test.
+
+    KNOWN LIMITATION: this calls kb_compression_retriever directly, so it
+    measures SINGLE-SHOT raw retrieval with none of the agent's reasoning on
+    top -- no query reformulation, and no SELF-CORRECTING RETRIEVAL retry.
+    For enumerate-style questions ("what processes are defined in X?") the
+    cross-encoder deterministically ranks a Scope/overview chunk above the
+    chunk that actually lists the members, so ContextualPrecision lands at
+    0.33 for the ISO/IEC/IEEE 15288 process-groups golden question (stable
+    to 13 decimal places across runs -- this is ranking behaviour, not
+    flakiness). The user-facing path compensates: the agent grades that
+    first result as insufficient and fires an enumeration-focused second
+    search (see agent.py's SELF-CORRECTING RETRIEVAL block), which is why
+    the equivalent audit case passes end-to-end. Moving this metric itself
+    would take chunking/reranker work, deliberately left out of scope."""
 
     def test_recall_and_precision_meet_threshold(self, golden_dataset, kb_populated):
         skip_if_kb_empty(kb_populated)

@@ -125,6 +125,35 @@ class TestSystemPrompt:
         prompt = agent_mod.get_system_prompt()
         assert "list_standards_metadata" in prompt
 
+    def test_prompt_ambiguity_check_is_relevance_conditional(self):
+        """The ambiguity rule must hinge on whether the requirement's own core
+        assertion is measurable -- not on a fixed checklist every requirement
+        has to satisfy in full, which used to force 'NOT TESTABLE AS WRITTEN'
+        on requirements that had a concrete threshold but left secondary
+        details (error messaging, persistence, recovery) unstated."""
+        import agent as agent_mod
+        prompt = agent_mod.get_system_prompt()
+        assert "CORE ASSERTION" in prompt
+        assert "APPLICABILITY" in prompt
+        assert "Never treat this list as a checklist" in prompt
+
+    def test_prompt_scope_covers_standards_defined_concepts(self):
+        """A generic-sounding question about a concept the standards define
+        (risk, hazard, validation...) must be treated as in scope rather than
+        dismissed as general knowledge."""
+        import agent as agent_mod
+        prompt = agent_mod.get_system_prompt()
+        assert "generic definition question" in prompt
+        assert "Do not dismiss these as general knowledge" in prompt
+
+    def test_prompt_verbatim_quote_integrity(self):
+        """Verbatim quotes must reproduce OCR corruption rather than being
+        smoothed into invented clean prose."""
+        import agent as agent_mod
+        prompt = agent_mod.get_system_prompt()
+        assert "verbatim / word-for-word" in prompt
+        assert "OCR corruption" in prompt
+
     def test_prompt_broad_question_retry_guidance(self):
         """Real get_system_prompt() output must instruct the LLM to retry
         with a broader/overview-reformulated query when retrieved chunks are
